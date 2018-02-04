@@ -1,0 +1,8 @@
+Dec 30/31 - 10 hours on name data exploration, name generator, hierarchy construction
+Jan 20 - 3 hours, google sheets credentials and api tests, reading/munging data into pandas dataframes
+Jan 24 - 4 hours, step handler for steps `Create Output File` and `Load File Into Memory`, have logic to read data locally if it exists, else pull from online endpoint (using shortcut to read same data from google sheets and update the Active Date.  Will need to adjust this later to talk to workday endpoints.)
+Feb 3 - 2 hours, File storage in memory, `Load Field Names` and `MapFields` steps
+
+Feb 4 - 3 hours: Explored and eliminated `LoadUniqueValues` step; made `CreateNewField_FromMap` step to handle reading in and updating of job family segments in its own field
+                   `CreateNewField_FromExpression` step to handle derivation of Year, Month, Calendar_Year_Month columns
+                   `CreateNewField_FromData` step to handle XYZ_Period
