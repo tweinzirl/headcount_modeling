@@ -1,0 +1,9 @@
+https://developers.google.com/sheets/api/quickstart/python
+
+see quickstart.tw.py for experimentation with api:
+   --pulling from one sheet
+   --writing to another
+   --modifying values in the data to be transferred to the second sheet
+   --updating single cells
+
+   --Retrieval of named ranges: rangeName = 'Sheet1!NamedRange'
