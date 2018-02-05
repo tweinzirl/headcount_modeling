@@ -113,6 +113,46 @@ def update_status_processed(service, Steps_df, row, spreadsheetId):
                spreadsheetId=spreadsheetId, range=rangeName, valueInputOption='RAW', 
                body=body).execute()
 
+def update_status_skipped(service, Steps_df, row, spreadsheetId):
+    if unicode.find(Steps_df.loc[row,'Processing Status(% complete)'], 'Processed') ==- 1:
+        spreadsheetId=BI_ENGINE_SHEET
+        rangeName = 'INSTRUCTIONS!D%d'%row #status in row D
+        body = {'values':[['Skipped']]}
+        result = service.spreadsheets().values().update(
+               spreadsheetId=spreadsheetId, range=rangeName, valueInputOption='RAW', 
+               body=body).execute()
+
+def get_tenureGroup(df,tenure_df):
+    delta = pd.to_datetime(df['PA_Data_Effective_Date'], format='%m/%d/%y') - \
+		pd.to_datetime(df['Client_Date_Official_Job_Current_Job_Start'], format='%m/%d/%y')
+    delta = delta.map(lambda x: x.days)/365.25
+
+    tenureGroup = []
+    tenure = []
+
+    for i in range(len(delta)):
+        delta2 = abs(tenure_df['PA_TENURE_YRS'] - delta.iloc[i])
+        am = pd.Series.idxmin(delta2)
+        tenureGroup.append(tenure_df.loc[am,'Custom_Tenure_Group'])
+        tenure.append(delta.iloc[i])
+
+    return tenureGroup, tenure
+
+def get_fin_unit(df,fin_df,newField):
+    map_dict = fin_df[['PA_ORG_FINANCIAL_LL_UNIT_CODE','CUSTOM_FIN1','CUSTOM_FIN2']].to_dict('list')
+    mapper = {}
+
+    if newField == 'PA_CUSTOM_FIN1':
+        for a,b in zip(map_dict['PA_ORG_FINANCIAL_LL_UNIT_CODE'], map_dict['CUSTOM_FIN1']): mapper[a] = b
+
+
+    if newField == 'PA_CUSTOM_FIN2':
+        for a,b in zip(map_dict['PA_ORG_FINANCIAL_LL_UNIT_CODE'], map_dict['CUSTOM_FIN2']): mapper[a] = b
+    
+    print(df['PA_ORG_FINANCIAL_LL_UNIT_CODE'].map(mapper))
+    #print(df.columns)
+    return df['PA_ORG_FINANCIAL_LL_UNIT_CODE'].map(mapper)
+
 '''
 BI_ENGINE_SHEET = '1TM6LcvN3yf_1zn9XBQwztmVP01Q89u6xZWIMaCzzHA4'
 EMPLOYEE_ACTIVE_SHEET = '1QXey8yWery_tKlixXtvmQxHBq8RDPPldD9ZOhSqzzJQ'
@@ -370,11 +410,11 @@ def main():
             for a,b in zip(map_dict['Source Field Data'], map_dict['Destination Segment Grouping']):
                 mapper[a] = b
 
-            #print(Active_df['CLIENT_Job_Family_Detailed'])
-            #print(Active_df['CLIENT_Job_Family_Detailed'].map(mapper))
-            Active_df[newField] = Active_df['CLIENT_Job_Family_Detailed'].map(mapper)
-            #Start_df['CLIENT_Job_Family_Detailed'] = Start_df['CLIENT_Job_Family_Detailed'].map(mapper) #transformation not valid for starts apparently, recheck later
-            Exit_df[newField] = Exit_df['CLIENT_Job_Family_Detailed'].map(mapper)
+            #print(Active_df['Client_Job_Family_Detailed'])
+            #print(Active_df['Client_Job_Family_Detailed'].map(mapper))
+            Active_df[newField] = Active_df['Client_Job_Family_Detailed'].map(mapper)
+            #Start_df['Client_Job_Family_Detailed'] = Start_df['Client_Job_Family_Detailed'].map(mapper) #transformation not valid for starts apparently, recheck later
+            Exit_df[newField] = Exit_df['Client_Job_Family_Detailed'].map(mapper)
 
  
             #if step not already processed, mark the sheet to show it has been processed
@@ -447,6 +487,60 @@ def main():
                 #status update
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
+            elif newField == 'PA_CUSTOM_TENURE_GRP':
+                rangeName = Steps_df.loc[row,'Field2'].split(':')[1].strip()
+                spreadsheetId=BI_ENGINE_SHEET
+                tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadsheetId)
+                tmp_df['PA_TENURE_YRS'] = tmp_df['PA_TENURE_YRS'].astype(float)
+
+                tenureGroup, tenure = get_tenureGroup(Active_df, tmp_df)
+                Active_df['Custom_Tenure_Group'] = tenureGroup
+                Active_df['Tenure'] = tenure
+                #print(Active_df[['PA_Data_Effective_Date','Client_Date_Official_Job_Current_Job_Start','Custom_Tenure_Group']].head())
+                
+                tenureGroup, tenure = get_tenureGroup(Start_df, tmp_df)
+                Start_df['Custom_Tenure_Group'] = tenureGroup
+                Start_df['Tenure'] = tenure
+
+                tenureGroup, tenure = get_tenureGroup(Exit_df, tmp_df)
+                Exit_df['Custom_Tenure_Group'] = tenureGroup
+                Exit_df['Tenure'] = tenure
+
+                #if step not already processed, mark the sheet to show it has been processed
+                update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+
+            elif newField == 'PA_CUSTOM_FIN1' or newField == 'PA_CUSTOM_FIN2': #!!!!!!!!!need data with the right column in order to test this!!!!!!1
+                rangeName = Steps_df.loc[row,'Field2'].split(':')[1].strip()
+                spreadsheetId=BI_ENGINE_SHEET
+                tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadsheetId)
+
+                #if newField == 'PA_CUSTOM_FIN1':
+                #    Active_df['PA_CUSTOM_FIN1'] = get_fin_unit(Active_df,tmp_df,newField)
+                #    Start_df['PA_CUSTOM_FIN1'] = get_fin_unit(Start_df,tmp_df,newField)
+                #    Exit_df['PA_CUSTOM_FIN1'] = get_fin_unit(Exit_df,tmp_df,newField)
+
+                #if newField == 'PA_CUSTOM_FIN2':
+                #    Active_df['PA_CUSTOM_FIN2'] = get_fin_unit(Active_df,tmp_df,newField)
+                #    Start_df['PA_CUSTOM_FIN2'] = get_fin_unit(Start_df,tmp_df,newField)
+                #    Exit_df['PA_CUSTOM_FIN2'] = get_fin_unit(Exit_df,tmp_df,newField)
+
+                ''' #rm this after successful test
+                map_dict = tmp_df[['PA_ORG_FINANCIAL_LL_UNIT_CODE','CUSTOM_FIN1','CUSTOM_FIN2']].to_dict('list')
+                mapper = {}
+
+                if newField == 'PA_CUSTOM_FIN1':
+                    for a,b in zip(map_dict['PA_ORG_FINANCIAL_LL_UNIT_CODE'], map_dict['CUSTOM_FIN1']): mapper[a] = b
+
+                    #print(Active_df['PA_ORG_FINANCIAL_LL_UNIT_CODE'].map(mapper))
+                    print(Active_df.columns)
+
+                if newField == 'PA_CUSTOM_FIN2':
+                    for a,b in zip(map_dict['PA_ORG_FINANCIAL_LL_UNIT_CODE'], map_dict['CUSTOM_FIN2']): mapper[a] = b
+                '''
+
+                #if step not already processed, mark the sheet to show it has been processed
+                #update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+                update_status_skipped(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
 
     print('output file name', foutname)
@@ -458,13 +552,7 @@ def main():
     print('Start_df row count: ', len(Start_df))
     print('Exit_df row count: ', len(Exit_df))
 
-    ###next step load CLIENT_Job_Family_Detailed_Segments, then add as new column to all tables
-
-    #### and obficate employee ID here
-
-    #### pause for DataMap1 to be finalized by user
-
-    #### apply CLIENT_Job_Family_Detailed_Segments
+    #creating fields from Data
 
     #########
 
