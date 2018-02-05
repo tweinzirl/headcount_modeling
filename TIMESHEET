@@ -9,6 +9,9 @@ Feb 4 - 3.5 hours: Explored and eliminated `LoadUniqueValues` step; made `Create
                    Updated SourceField -> DestinationField mappings to match Mike's updated list at https://docs.google.com/spreadsheets/d/1o-odmIXZ2u14Rihbi3HKKbgE0OhCmRkBIqU9TE1BfgY/edit#gid=2011288004
 
         Session 2:
-        1.5 hours:
+        4.5 hours:
             PA_CUSTOM_TENURE_GRP
             PA_CUSTOM_FIN1 and 2 - still need to test because sample data missing column
+            CUSTOM_JOB_FAMILY
+            CUSTOM_REGION- mapping broken as specified, just copy over Client_Region to new column time
+            Updated up through Crosstab columns, need to revisit after testing the FIN columns with better test data

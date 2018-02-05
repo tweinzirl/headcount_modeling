@@ -153,6 +153,12 @@ def get_fin_unit(df,fin_df,newField):
     #print(df.columns)
     return df['PA_ORG_FINANCIAL_LL_UNIT_CODE'].map(mapper)
 
+def crosstab_concat(df,cols,sep='__'):
+    c = df[cols[0]] 
+    for i in range(1,len(cols)):
+        c = c + sep + df[cols[i]]
+    return c
+
 '''
 BI_ENGINE_SHEET = '1TM6LcvN3yf_1zn9XBQwztmVP01Q89u6xZWIMaCzzHA4'
 EMPLOYEE_ACTIVE_SHEET = '1QXey8yWery_tKlixXtvmQxHBq8RDPPldD9ZOhSqzzJQ'
@@ -542,6 +548,140 @@ def main():
                 #update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
                 update_status_skipped(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
+            elif newField == 'PA_CUSTOM_JOB_FAMILY':
+                rangeName = Steps_df.loc[row,'Field2'].split(':')[1].strip()
+                spreadsheetId=BI_ENGINE_SHEET
+                tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadsheetId)
+
+                #map job family
+                map_dict = tmp_df[['PA_Job_Official_Name','CUSTOM_JOB_FAMILY']].to_dict('list')
+                mapper = {}
+                for a,b in zip(map_dict['PA_Job_Official_Name'], map_dict['CUSTOM_JOB_FAMILY']):
+                    mapper[a] = b
+
+                Active_df[newField] = Active_df['PA_Job_Official_Name'].map(mapper)
+                #Start_df[newField] = Start_df['PA_Job_Official_Name'].map(mapper) #deactive for Start_df for now because test data sucks
+                Exit_df[newField] = Exit_df['PA_Job_Official_Name'].map(mapper)
+                #print(Active_df[newField])
+
+                #if step not already processed, mark the sheet to show it has been processed
+                update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+
+            elif newField == 'PA_CUSTOM_JOB_LEVEL':
+                rangeName = Steps_df.loc[row,'Field2'].split(':')[1].strip()
+                spreadsheetId=BI_ENGINE_SHEET
+                tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadsheetId)
+
+                #map job level
+                map_dict = tmp_df[['PA_Job_LEVEL','Client_Management_Level']].to_dict('list')
+                mapper = {}
+                for a,b in zip(map_dict['PA_Job_LEVEL'], map_dict['Client_Management_Level']):
+                    mapper[a] = b
+
+                Active_df[newField] = Active_df['Client_Management_Level'].map(mapper)
+                #Start_df[newField] = Start_df['PA_Job_Official_Name'].map(mapper) #deactive for Start_df for now because test data sucks
+                Exit_df[newField] = Exit_df['PA_Job_Official_Name'].map(mapper)
+                #print(Active_df[newField])
+                #print(Exit_df[newField])
+
+                #if step not already processed, mark the sheet to show it has been processed
+                update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+
+            elif newField == 'PA_CUSTOM_REGION':
+                rangeName = Steps_df.loc[row,'Field2'].split(':')[1].strip()
+                spreadsheetId=BI_ENGINE_SHEET
+                tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadsheetId)
+
+                #map region
+                map_dict = tmp_df[['PA_LOCATION','CUSTOM_REGION']].to_dict('list')
+                mapper = {}
+                for a,b in zip(map_dict['PA_LOCATION'], map_dict['CUSTOM_REGION']):
+                    mapper[a] = b
+
+                Active_df[newField] = Active_df['Client_REGION']
+                #Start_df[newField] = Start_df['Client_REGION'] #deactive for Start_df for now because test data sucks
+                Exit_df[newField] = Exit_df['Client_REGION']
+                #Active_df[newField] = Active_df['Client_REGION'].map(mapper)
+                #Start_df[newField] = Start_df['Client_REGION'].map(mapper) #deactive for Start_df for now because test data sucks
+                #Exit_df[newField] = Exit_df['Client_REGION'].map(mapper)
+                #print(Active_df[newField])
+
+                #if step not already processed, mark the sheet to show it has been processed
+                update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+
+            elif newField == 'PA_CROSSTAB_REGION_LOCATION':
+
+                cols=['Client_Location','Client_REGION']
+                Active_df[newField] = crosstab_concat(Active_df,cols )
+                #Start_df[newField] = crosstab_concat(Start_df,cols) #deactivating because test data sucks
+                Exit_df[newField] = crosstab_concat(Exit_df,cols)
+                #print(Active_df[newField])
+                #print(Start_df[newField])
+
+                #if step not already processed, mark the sheet to show it has been processed
+                update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+
+            elif newField == 'PA_CROSSTAB_FIN1_JOBLEVEL':
+
+                pass #until FIN1 cols made with better test data
+                '''
+                cols=['PA_CUSTOM_FIN1','PA_CUSTOM_JOB_LEVEL']
+                Active_df[newField] = crosstab_concat(Active_df,cols, sep='_')
+                #Start_df[newField] = crosstab_concat(Start_df,cols, sep='_') #deactivating because test data sucks
+                Exit_df[newField] = crosstab_concat(Exit_df,cols, sep='_')
+                print(Active_df[newField])
+                #print(Start_df[newField])
+
+                #if step not already processed, mark the sheet to show it has been processed
+                update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+                '''
+
+            elif newField == 'PA_CROSSTAB_FIN1_REGION_JOBLEVEL':
+                
+                pass #until FIN1 colas made with better test data
+                '''
+                #cols = ['Client_Region', 'PA_CUSTOM_FIN1', 'PA_CUSTOM_JOB_LEVEL']
+                cols = ['Client_REGION', 'PA_CUSTOM_JOB_LEVEL']
+                Active_df[newField] = crosstab_concat(Active_df,cols, sep='_')
+                #Start_df[newField] = crosstab_concat(Start_df,cols, sep='_') #deactivating because test data sucks
+                Exit_df[newField] = crosstab_concat(Exit_df,cols, sep='_')
+                #print(Active_df[newField])
+
+                #if step not already processed, mark the sheet to show it has been processed
+                update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+                '''
+
+            elif newField == 'PA_CROSSTAB_FIN1_JOBLEVEL_TENURE':
+
+                pass #until FIN1 colas made with better test data
+
+                '''
+                #cols = ['PA_CUSTOM_FIN1', 'PA_CUSTOM_JOB_LEVEL', 'Custom_Tenure_Group']
+                cols = ['PA_CUSTOM_JOB_LEVEL', 'Custom_Tenure_Group']
+                Active_df[newField] = crosstab_concat(Active_df,cols, sep='_')
+                #Start_df[newField] = crosstab_concat(Start_df,cols, sep='_') #deactivating because test data sucks
+                Exit_df[newField] = crosstab_concat(Exit_df,cols, sep='_')
+                #print(Active_df[newField])
+
+                #if step not already processed, mark the sheet to show it has been processed
+                update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+                '''
+
+            elif newField == 'PA_CROSSTAB_FIN1_REGION_JOBLEVEL_TENURE':
+
+                pass #until FIN1 colas made with better test data
+
+                '''
+                #cols = ['PA_CUSTOM_FIN1', 'PA_CUSTOM_JOB_LEVEL', 'Custom_Tenure_Group']
+                cols = ['Client_REGION', 'PA_CUSTOM_JOB_LEVEL', 'Custom_Tenure_Group']
+                Active_df[newField] = crosstab_concat(Active_df,cols, sep='_')
+                #Start_df[newField] = crosstab_concat(Start_df,cols, sep='_') #deactivating because test data sucks
+                Exit_df[newField] = crosstab_concat(Exit_df,cols, sep='_')
+                print(Active_df[newField])
+
+                #if step not already processed, mark the sheet to show it has been processed
+                update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+                '''
 
     print('output file name', foutname)
     print('EmployeeActiveFiles', EmployeeActiveFiles)
