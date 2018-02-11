@@ -6,12 +6,22 @@ Feb 3 - 2 hours, File storage in memory, `Load Field Names` and `MapFields` step
 Feb 4 - 3.5 hours: Explored and eliminated `LoadUniqueValues` step; made `CreateNewField_FromMap` step to handle reading in and updating of job family segments in its own field
                    `CreateNewField_FromExpression` step to handle derivation of Year, Month, Calendar_Year_Month columns
                    `CreateNewField_FromData` step to handle XYZ_Period
-                   Updated SourceField -> DestinationField mappings to match Mike's updated list at https://docs.google.com/spreadsheets/d/1o-odmIXZ2u14Rihbi3HKKbgE0OhCmRkBIqU9TE1BfgY/edit#gid=2011288004
+                    Active_Start_Period and Active_End_Period columns are ignored because they are not in Mike's output table
+                    Updated SourceField -> DestinationField mappings to match Mike's updated list at https://docs.google.com/spreadsheets/d/1o-odmIXZ2u14Rihbi3HKKbgE0OhCmRkBIqU9TE1BfgY/edit#gid=2011288004
 
         Session 2:
         4.5 hours:
+            Updated `CreateNewField_FromData` to handle
             PA_CUSTOM_TENURE_GRP
             PA_CUSTOM_FIN1 and 2 - still need to test because sample data missing column
-            CUSTOM_JOB_FAMILY
-            CUSTOM_REGION- mapping broken as specified, just copy over Client_Region to new column time
-            Updated up through Crosstab columns, need to revisit after testing the FIN columns with better test data
+            PA_CUSTOM_JOB_FAMILY
+            PA_CUSTOM_JOB_LEVEL
+            PA_CUSTOM_REGION- mapping broken as specified, just copy over Client_Region to new column time
+            All PA_CROSSTAB_* columns, need to revisit after testing the FIN columns with better test data
+
+Feb 10
+   Session 1: 
+      1.25 hr: 
+        -- Fork to version 2 for reading modified instruction set, refactored how sheet name and instruction step range are defined (now at the top of file)
+        --Start testing with large input files for Active, Start , Exits
+        --Next debug ascii encoding problem for caching the data
