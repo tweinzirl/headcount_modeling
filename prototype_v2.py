@@ -1,3 +1,5 @@
+#!/usr/bin/env python2
+
 #original imports from quickstart example
 from __future__ import print_function
 import httplib2
@@ -7,17 +9,25 @@ from apiclient import discovery
 from oauth2client import client
 from oauth2client import tools
 from oauth2client.file import Storage
-try:
-    import argparse
-    flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
-except ImportError:
-    flags = None
+#try:
+#    import argparse
+#    flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
+#except ImportError:
+#    flags = None
 
 #tw imports
 import pandas as pd
 import os
 import re
+import sys
+import argparse
 
+'''
+usage:
+    >>> ./prototype_v2.py [instruction sheet] [instruction steps]
+    [instruction sheet] is the sheet name of the instruction set
+    [instruction steps] are the steps to process; this range MUST include the column headings as row 0
+'''
 
 # If modifying these scopes, delete your previously saved credentials
 # at ~/.credentials/sheets.googleapis.com-python-quickstart.json
@@ -30,10 +40,8 @@ CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'Google Sheets API Python Quickstart'
 
 BI_ENGINE_SHEET = '1TM6LcvN3yf_1zn9XBQwztmVP01Q89u6xZWIMaCzzHA4'
-#EMPLOYEE_ACTIVE_SHEET = '1QXey8yWery_tKlixXtvmQxHBq8RDPPldD9ZOhSqzzJQ'
-#EMPLOYEE_START_SHEET = '1YUdi-poZTWYG__Ks6ADVWxWbi35SCK2XCkvZo1XSXFo'
-#EMPLOYEE_EXIT_SHEET = '1YlYLU8yIRLaIcLJkdzA_mjzGffZ1aDEjYcXBZKqfyPk'
 
+#try to set instruction sheet and instruction step range from commandline flags, else use chosen defaults
 INSTRUCTION_SHEET_NAME = 'INSTRUCTIONS_V2'
 STEPS_RANGE_NAME = 'STEPS_v2'
 
@@ -111,7 +119,7 @@ def read_sheet(service, rangeName=None, spreadsheetId=None):
     return df, rrange
 
 def get_date_attribute(df, sourceField, func):
-    datecol = pd.to_datetime(df[sourceField], format = '%m/%d/%y')
+    datecol = pd.to_datetime(df[sourceField], format = '%m/%d/%Y') #assume year is YYYY
     new = datecol.map(func)
     return new
 
@@ -134,8 +142,8 @@ def update_status_skipped(service, Steps_df, row, spreadsheetId):
                body=body).execute()
 
 def get_tenureGroup(df,tenure_df):
-    delta = pd.to_datetime(df['PA_Data_Effective_Date'], format='%m/%d/%y') - \
-		pd.to_datetime(df['Client_Date_Official_Job_Current_Job_Start'], format='%m/%d/%y')
+    delta = pd.to_datetime(df['PA_Data_Effective_Date'], format='%m/%d/%Y') - \
+		pd.to_datetime(df['Client_Date_Official_Job_Current_Job_Start'], format='%m/%d/%Y')
     delta = delta.map(lambda x: x.days)/365.25
 
     tenureGroup = []
@@ -160,8 +168,6 @@ def get_fin_unit(df,fin_df,newField):
     if newField == 'PA_CUSTOM_FIN2':
         for a,b in zip(map_dict['PA_ORG_FINANCIAL_LL_UNIT_CODE'], map_dict['CUSTOM_FIN2']): mapper[a] = b
     
-    print(df['PA_ORG_FINANCIAL_LL_UNIT_CODE'].map(mapper))
-    #print(df.columns)
     return df['PA_ORG_FINANCIAL_LL_UNIT_CODE'].map(mapper)
 
 def crosstab_concat(df,cols,sep='__'):
@@ -178,10 +184,6 @@ def main():
     rangeName = '%s!%s'%(INSTRUCTION_SHEET_NAME,STEPS_RANGE_NAME)
     spreadsheetId=BI_ENGINE_SHEET
     Steps_df, Steps_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadsheetId)
-
-    ###can parse the steos_range to track which cells to update for each step
-    #print(Steps_df.head(15))
-    #print(steps_range)
 
     #detect the starting row where the steps are stored (probably 16 but will autodetect)
     #use this variable to track which row in the engine to communicate step updates to
@@ -218,20 +220,20 @@ def main():
                 mk_local_output(foutname)   
 
             #update sheet if step not already completed
-            if unicode.find(Steps_df.loc[row,'Processing Status(% complete)'], 'Processed') ==- 1:
-                update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+            update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
 
         #load file into memory
-        if step == 'Load File Into Memory' and unicode.find(Steps_df.loc[row,'Processing Status(% complete)'], 'Processed') ==- 1:
-            #spreadsheetId of data
-            spreadSheetId = Steps_df.loc[row,'Field1'].split(':')[1].strip()
+        if step == 'Load File Into Memory':
+            spreadSheetId = Steps_df.loc[row,'Field1'].split(':')[1].strip() #spreadsheetId of data
 
             datatype = Steps_df.loc[row,'Field4'].split(':')[1].strip()
             output_location = Steps_df.loc[row,'Field5'].split(':')[1].strip()
-            output_filename = os.path.join('localOutput',Steps_df.loc[row,'Field6'].split(':')[1].strip())
+            filename = os.path.join('localOutput',Steps_df.loc[row,'Field6'].split(':')[1].strip())
 
             if datatype == 'EmployeeActive': #placeholder in lieu of talking to real endpoint
+                EmployeeActiveFiles.append(filename) #append file name
+
                 startdate = Steps_df.loc[row,'Field2'].split(':')[1].strip()
                 mapdate = Steps_df.loc[row,'Field3'].split(':')[1].strip()
                 toks = mapdate.split('/')
@@ -239,126 +241,74 @@ def main():
                 toks = startdate.split('/')
                 start_mm,start_dd,start_yyyy = toks[0], toks[1], toks[2] 
                 #update output file name
-                output_filename = output_filename.replace('YYYY',end_yyyy)
-                output_filename = output_filename.replace('MM',end_mm)
-                output_filename = output_filename.replace('DD',end_dd)
-                print('process unloaded data, type = %s, mm/dd/yyyy = %s/%s/%s, output = %s'%(datatype, end_mm,end_dd,end_yyyy, output_filename))
-
-                #retrieve the data
-                rangeName = 'Sheet1' 
-                #print(tmp_df.head(1))
-                #apply date change - note mm/dd/yy format
-                date1 = '%d/%d/%s'%(int(start_mm),int(start_dd),start_yyyy[-2:])
-                date2 = '%d/%d/%s'%(int(end_mm),int(end_dd),end_yyyy[-2:])
-
-                #print('search for %s, replace with %s'%(date1, date2))
-                #print(tmp_df['Effective Date'])
-                #print(tmp_df['Effective Date']==date1)
-
-                #append file name
-                EmployeeActiveFiles.append(output_filename)
+                filename = filename.replace('YYYY',end_yyyy)
+                filename = filename.replace('MM',end_mm)
+                filename = filename.replace('DD',end_dd)
+                print('process unloaded data, type = %s, mm/dd/yyyy = %s/%s/%s, output = %s'%(datatype, end_mm,end_dd,end_yyyy, filename))
 
                 #update Active_df if data not already stored locally
-                if Active_df is not None: #exists, so append to it
-                    tmp_df = pd.read_csv(output_filename)
-                    Active_df = Active_df.append(tmp_df, ignore_index=True)
-                else: #read in the initial file of this data frame
-                    #Active_df = pd.read_csv(output_filename)
+                if os.path.exists(filename):  #empty df but cache exists: read_csv
+                    tmp_df = pd.read_csv(filename)
+
+                elif not os.path.exists(filename): 
+                    #Active_df is empty and cache file does not exist: pull from Sheet, set to Active_df and cache
+                    rangeName = 'Sheet1' 
                     tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadSheetId)
+
+                    #apply date change - note mm/dd/yy format
+                    date1 = '%d/%d/%s'%(int(start_mm),int(start_dd),start_yyyy[-2:])
+                    date2 = '%d/%d/%s'%(int(end_mm),int(end_dd),end_yyyy[-2:])
                     tmp_df.loc[tmp_df['Effective Date']==date1,'Effective Date']=date2
+
+                    #cache file
+                    tmp_df.to_csv(filename, index=False, encoding='utf-8')
+
+                #initialize or append to Active_df
+                if Active_df is None:
                     Active_df = tmp_df.copy()
-
-            elif datatype == 'EmployeeStartList':
-                enddate = Steps_df.loc[row,'Field2'].split(':')[1].strip()
-                toks = mapdate.split('/')
-                end_mm,end_dd,end_yyyy = toks[0], toks[1], toks[2] 
-
-                rangeName = 'Sheet1' 
-                #print(tmp_df.head(1))
-
-                #append file name
-                EmployeeStartFiles.append(output_filename)
-
-                #update Start_df if data not already stored locally
-                if Start_df is not None: #exists, so append to it
-                    tmp_df = pd.read_csv(output_filename)
-                    Start_df = Start_df.append(tmp_df, ignore_index=True)
-                else: #read in the initial file of this data frame
-                    #Start_df = pd.read_csv(output_filename)
-                    tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadSheetId)
-                    Start_df = tmp_df.copy()
-
-            elif datatype == 'EmployeeExitList':
-                rangeName = 'Sheet1' 
-                tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadSheetId)
-                #print(tmp_df.head(1))
-
-                #append file name
-                EmployeeExitFiles.append(output_filename)
-
-                #update Exit_df if data not already stored locally
-                if Exit_df is not None: #exists, so append to it
-                    tmp_df = pd.read_csv(output_filename)
-                    Exit_df = Exit_df.append(tmp_df, ignore_index=True)
-                else: #read in the initial file of this data frame
-                    #Exit_df = pd.read_csv(output_filename)
-                    Exit_df = tmp_df.copy()
-
-            #cache the file not matter what type it is
-            tmp_df.to_csv(output_filename, index=False)
-
-            #update the cell with Processed
-            spreadsheetId=BI_ENGINE_SHEET
-            rangeName = '%s!D%d'%(INSTRUCTION_SHEET_NAME,row) #status in row D
-
-            body = {'values':[['Processed']]}
-            result = service.spreadsheets().values().update(
-                spreadsheetId=spreadsheetId, range=rangeName, valueInputOption='RAW', 
-                body=body).execute()
-
-
-        #now case where data already exists locally
-        elif step == 'Load File Into Memory':
-            datatype = Steps_df.loc[row,'Field4'].split(':')[1].strip()
-            input_location = Steps_df.loc[row,'Field5'].split(':')[1].strip()
-            input_filename = os.path.join('localOutput',Steps_df.loc[row,'Field6'].split(':')[1].strip())
-
-            if datatype == 'EmployeeActive': #placeholder in lieu of talking to real endpoint
-                startdate = Steps_df.loc[row,'Field2'].split(':')[1].strip()
-                mapdate = Steps_df.loc[row,'Field3'].split(':')[1].strip()
-                toks = mapdate.split('/')
-                end_mm,end_dd,end_yyyy = toks[0], toks[1], toks[2] 
-                toks = startdate.split('/')
-                start_mm,start_dd,start_yyyy = toks[0], toks[1], toks[2] 
-                #update input file name
-                input_filename = input_filename.replace('YYYY',end_yyyy)
-                input_filename = input_filename.replace('MM',end_mm)
-                input_filename = input_filename.replace('DD',end_dd)
-
-                EmployeeActiveFiles.append(input_filename)
-
-                if Active_df is not None: #exists, so append to it
-                    tmp_df = pd.read_csv(input_filename)
+                elif Active_df is not None:
                     Active_df = Active_df.append(tmp_df, ignore_index=True)
-                else: #read in the initial file of this data frame
-                    Active_df = pd.read_csv(input_filename)
 
             elif datatype == 'EmployeeStartList':
-                EmployeeStartFiles.append(input_filename)
-                if Start_df is not None: #exists, so append to it
-                    tmp_df = pd.read_csv(input_filename)
+                EmployeeStartFiles.append(filename) #append file name
+
+                if os.path.exists(filename):  #empty df but cache exists: read_csv
+                    tmp_df = pd.read_csv(filename)
+                elif not os.path.exists(filename): 
+                    #Active_df is empty and cache file does not exist: pull from Sheet, set to Active_df and cache
+                    rangeName = 'Sheet1' 
+                    tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadSheetId)
+
+                    #cache file
+                    tmp_df.to_csv(filename, index=False, encoding='utf-8')
+
+                #initialize or append to Start_df
+                if Start_df is None:
+                    Start_df = tmp_df.copy()
+                elif Start_df is not None:
                     Start_df = Start_df.append(tmp_df, ignore_index=True)
-                else: #read in the initial file of this data frame
-                    Start_df = pd.read_csv(input_filename)
 
             elif datatype == 'EmployeeExitList':
-                EmployeeExitFiles.append(input_filename)
-                if Exit_df is not None: #exists, so append to it
-                    tmp_df = pd.read_csv(input_filename)
-                    Exit_df = Exit_df.append(tmp_df, ignore_index=True)
-                else: #read in the initial file of this data frame
-                    Exit_df = pd.read_csv(input_filename)
+                EmployeeExitFiles.append(filename) #append file name
 
+                if os.path.exists(filename):  #empty df but cache exists: read_csv
+                    tmp_df = pd.read_csv(filename)
+                elif not os.path.exists(filename): 
+                    #Active_df is empty and cache file does not exist: pull from Sheet, set to Active_df and cache
+                    rangeName = 'Sheet1' 
+                    tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadSheetId)
+
+                    #cache file
+                    tmp_df.to_csv(filename, index=False, encoding='utf-8')
+
+                #initialize or append to Exit_df
+                if Exit_df is None:
+                    Exit_df = tmp_df.copy()
+                elif Exit_df is not None:
+                    Exit_df = Exit_df.append(tmp_df, ignore_index=True)
+
+            #if first time processing this step, cache the output and update the spreadsheet
+            update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
         #column names to remap
         if step == 'Load Field Names':
@@ -369,17 +319,10 @@ def main():
             output_filename = os.path.join('localOutput','field_names_%s.csv'%recordType)
             FieldNameMapping[recordType] = output_filename
 
-            #if step not already processed, save the data locally in the right file and update the sheet
-            if unicode.find(Steps_df.loc[row,'Processing Status(% complete)'], 'Processed') ==- 1:
-                tmp_df.to_csv(output_filename, index=False)
-                #update the cell with Processed
-                spreadsheetId=BI_ENGINE_SHEET
-                rangeName = '%s!D%d'%(INSTRUCTION_SHEET_NAME,row) #status in row D
+            if not os.path.exists(output_filename): tmp_df.to_csv(output_filename, index=False) #cache if not already present
 
-                body = {'values':[['Processed']]}
-                result = service.spreadsheets().values().update(
-                    spreadsheetId=spreadsheetId, range=rangeName, valueInputOption='RAW', 
-                    body=body).execute()
+            #if step not already processed, save the data locally in the right file and update the sheet
+            update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
         if step == 'MapFields_ObfuscateData': #this step happens every time since it happens in memory
             datatype = Steps_df.loc[row,'Field1'].split(':')[1].strip()
@@ -391,10 +334,6 @@ def main():
 
             if datatype == 'Active':
                 Active_df = Active_df.rename(columns=mapper, index=str)
-                #Active_df = MapFields(Active_df, FieldNameMapping[datatype])
-                #print(mapper)
-                #print('Before', Active_df.columns)
-                #print('after', Active_df.columns)
             elif datatype == 'Start':
                 Start_df = Start_df.rename(columns=mapper, index=str)
             elif datatype == 'Exit':
@@ -403,43 +342,24 @@ def main():
             #skipping the obsfucate data part since it makes no sense
 
             #if step not already processed, mark the sheet to show it has been processed
-            if unicode.find(Steps_df.loc[row,'Processing Status(% complete)'], 'Processed') ==- 1:
-                spreadsheetId=BI_ENGINE_SHEET
-                rangeName = '%s!D%d'%(INSTRUCTION_SHEET_NAME,row) #status in row D
-
-                body = {'values':[['Processed']]}
-                result = service.spreadsheets().values().update(
-                    spreadsheetId=spreadsheetId, range=rangeName, valueInputOption='RAW', 
-                    body=body).execute()
+            update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
         if step == 'CreateNewField_FromMap': #this step happens every time since it happens in memory
             newField = Steps_df.loc[row,'Field1'].split(':')[1].strip()
             rangeName = Steps_df.loc[row,'Field2'].split(':')[1].strip()
             spreadsheetId=BI_ENGINE_SHEET
             tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadsheetId)
-            #output_filename = os.path.join('localOutput','field_names_%s.csv'%recordType)
-            #FieldNameMapping[recordType] = output_filename
             map_dict = tmp_df[['Source Field Data','Destination Segment Grouping']].to_dict('list')
             mapper = {}
             for a,b in zip(map_dict['Source Field Data'], map_dict['Destination Segment Grouping']):
                 mapper[a] = b
 
-            #print(Active_df['Client_Job_Family_Detailed'])
-            #print(Active_df['Client_Job_Family_Detailed'].map(mapper))
             Active_df[newField] = Active_df['Client_Job_Family_Detailed'].map(mapper)
-            #Start_df['Client_Job_Family_Detailed'] = Start_df['Client_Job_Family_Detailed'].map(mapper) #transformation not valid for starts apparently, recheck later
+            Start_df['Client_Job_Family_Detailed'] = Start_df['Client_Job_Family_Detailed'].map(mapper) #transformation not valid for starts apparently, recheck later
             Exit_df[newField] = Exit_df['Client_Job_Family_Detailed'].map(mapper)
 
- 
             #if step not already processed, mark the sheet to show it has been processed
-            if unicode.find(Steps_df.loc[row,'Processing Status(% complete)'], 'Processed') ==- 1:
-                spreadsheetId=BI_ENGINE_SHEET
-                rangeName = '%s!D%d'%(INSTRUCTION_SHEET_NAME,row) #status in row D
-
-                body = {'values':[['Processed']]}
-                result = service.spreadsheets().values().update(
-                    spreadsheetId=spreadsheetId, range=rangeName, valueInputOption='RAW', 
-                    body=body).execute()
+            update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
         if step == 'CreateNewField_FromExpression': #this step happens every time since it happens in memory
             newField = Steps_df.loc[row,'Field1'].split(':')[1].strip()
@@ -462,14 +382,7 @@ def main():
                 Exit_df[newField] = get_date_attribute(Exit_df, sourceField, f)
 
             #if step not already processed, mark the sheet to show it has been processed
-            if unicode.find(Steps_df.loc[row,'Processing Status(% complete)'], 'Processed') ==- 1:
-                spreadsheetId=BI_ENGINE_SHEET
-                rangeName = '%s!D%d'%(INSTRUCTION_SHEET_NAME,row) #status in row D
-
-                body = {'values':[['Processed']]}
-                result = service.spreadsheets().values().update(
-                    spreadsheetId=spreadsheetId, range=rangeName, valueInputOption='RAW', 
-                    body=body).execute()
+            update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
         if step == 'CreateNewField_FromData': #this step happens every time since it happens in memory
             newField = Steps_df.loc[row,'Field1'].split(':')[1].strip()
@@ -490,7 +403,6 @@ def main():
                 Active_df[newField] = Active_df['Calendar_Year_Month'].map(mapper)
                 Start_df[newField] = Start_df['Calendar_Year_Month'].map(mapper)
                 Exit_df[newField] = Exit_df['Calendar_Year_Month'].map(mapper)
-                #print(Active_df[newField])
 
                 #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
@@ -512,7 +424,6 @@ def main():
                 tenureGroup, tenure = get_tenureGroup(Active_df, tmp_df)
                 Active_df['Custom_Tenure_Group'] = tenureGroup
                 Active_df['Tenure'] = tenure
-                #print(Active_df[['PA_Data_Effective_Date','Client_Date_Official_Job_Current_Job_Start','Custom_Tenure_Group']].head())
                 
                 tenureGroup, tenure = get_tenureGroup(Start_df, tmp_df)
                 Start_df['Custom_Tenure_Group'] = tenureGroup
@@ -530,33 +441,21 @@ def main():
                 spreadsheetId=BI_ENGINE_SHEET
                 tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadsheetId)
 
-                #if newField == 'PA_CUSTOM_FIN1':
-                #    Active_df['PA_CUSTOM_FIN1'] = get_fin_unit(Active_df,tmp_df,newField)
-                #    Start_df['PA_CUSTOM_FIN1'] = get_fin_unit(Start_df,tmp_df,newField)
-                #    Exit_df['PA_CUSTOM_FIN1'] = get_fin_unit(Exit_df,tmp_df,newField)
-
-                #if newField == 'PA_CUSTOM_FIN2':
-                #    Active_df['PA_CUSTOM_FIN2'] = get_fin_unit(Active_df,tmp_df,newField)
-                #    Start_df['PA_CUSTOM_FIN2'] = get_fin_unit(Start_df,tmp_df,newField)
-                #    Exit_df['PA_CUSTOM_FIN2'] = get_fin_unit(Exit_df,tmp_df,newField)
-
-                ''' #rm this after successful test
-                map_dict = tmp_df[['PA_ORG_FINANCIAL_LL_UNIT_CODE','CUSTOM_FIN1','CUSTOM_FIN2']].to_dict('list')
-                mapper = {}
+                #hack to replace LL with L2
+                tmp_df['PA_ORG_FINANCIAL_LL_UNIT_CODE'] = tmp_df['PA_ORG_FINANCIAL_LL_UNIT_CODE'].str.replace('LL','L2')
 
                 if newField == 'PA_CUSTOM_FIN1':
-                    for a,b in zip(map_dict['PA_ORG_FINANCIAL_LL_UNIT_CODE'], map_dict['CUSTOM_FIN1']): mapper[a] = b
-
-                    #print(Active_df['PA_ORG_FINANCIAL_LL_UNIT_CODE'].map(mapper))
-                    print(Active_df.columns)
+                    Active_df['PA_CUSTOM_FIN1'] = get_fin_unit(Active_df,tmp_df,newField)
+                    Start_df['PA_CUSTOM_FIN1'] = get_fin_unit(Start_df,tmp_df,newField)
+                    Exit_df['PA_CUSTOM_FIN1'] = get_fin_unit(Exit_df,tmp_df,newField)
 
                 if newField == 'PA_CUSTOM_FIN2':
-                    for a,b in zip(map_dict['PA_ORG_FINANCIAL_LL_UNIT_CODE'], map_dict['CUSTOM_FIN2']): mapper[a] = b
-                '''
+                    Active_df['PA_CUSTOM_FIN2'] = get_fin_unit(Active_df,tmp_df,newField)
+                    Start_df['PA_CUSTOM_FIN2'] = get_fin_unit(Start_df,tmp_df,newField)
+                    Exit_df['PA_CUSTOM_FIN2'] = get_fin_unit(Exit_df,tmp_df,newField)
 
                 #if step not already processed, mark the sheet to show it has been processed
-                #update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
-                update_status_skipped(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+                update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
             elif newField == 'PA_CUSTOM_JOB_FAMILY':
                 rangeName = Steps_df.loc[row,'Field2'].split(':')[1].strip()
@@ -570,9 +469,8 @@ def main():
                     mapper[a] = b
 
                 Active_df[newField] = Active_df['PA_Job_Official_Name'].map(mapper)
-                #Start_df[newField] = Start_df['PA_Job_Official_Name'].map(mapper) #deactive for Start_df for now because test data sucks
+                Start_df[newField] = Start_df['PA_Job_Official_Name'].map(mapper) 
                 Exit_df[newField] = Exit_df['PA_Job_Official_Name'].map(mapper)
-                #print(Active_df[newField])
 
                 #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
@@ -589,10 +487,8 @@ def main():
                     mapper[a] = b
 
                 Active_df[newField] = Active_df['Client_Management_Level'].map(mapper)
-                #Start_df[newField] = Start_df['PA_Job_Official_Name'].map(mapper) #deactive for Start_df for now because test data sucks
-                Exit_df[newField] = Exit_df['PA_Job_Official_Name'].map(mapper)
-                #print(Active_df[newField])
-                #print(Exit_df[newField])
+                Start_df[newField] = Start_df['Client_Management_Level'].map(mapper)
+                Exit_df[newField] = Exit_df['Client_Management_Level'].map(mapper)
 
                 #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
@@ -609,12 +505,8 @@ def main():
                     mapper[a] = b
 
                 Active_df[newField] = Active_df['Client_REGION']
-                #Start_df[newField] = Start_df['Client_REGION'] #deactive for Start_df for now because test data sucks
+                Start_df[newField] = Start_df['Client_REGION']
                 Exit_df[newField] = Exit_df['Client_REGION']
-                #Active_df[newField] = Active_df['Client_REGION'].map(mapper)
-                #Start_df[newField] = Start_df['Client_REGION'].map(mapper) #deactive for Start_df for now because test data sucks
-                #Exit_df[newField] = Exit_df['Client_REGION'].map(mapper)
-                #print(Active_df[newField])
 
                 #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
@@ -623,75 +515,50 @@ def main():
 
                 cols=['Client_Location','Client_REGION']
                 Active_df[newField] = crosstab_concat(Active_df,cols )
-                #Start_df[newField] = crosstab_concat(Start_df,cols) #deactivating because test data sucks
+                Start_df[newField] = crosstab_concat(Start_df,cols)
                 Exit_df[newField] = crosstab_concat(Exit_df,cols)
-                #print(Active_df[newField])
-                #print(Start_df[newField])
 
                 #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
             elif newField == 'PA_CROSSTAB_FIN1_JOBLEVEL':
 
-                pass #until FIN1 cols made with better test data
-                '''
                 cols=['PA_CUSTOM_FIN1','PA_CUSTOM_JOB_LEVEL']
                 Active_df[newField] = crosstab_concat(Active_df,cols, sep='_')
-                #Start_df[newField] = crosstab_concat(Start_df,cols, sep='_') #deactivating because test data sucks
+                Start_df[newField] = crosstab_concat(Start_df,cols, sep='_') 
                 Exit_df[newField] = crosstab_concat(Exit_df,cols, sep='_')
-                print(Active_df[newField])
-                #print(Start_df[newField])
 
-                #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
-                '''
 
             elif newField == 'PA_CROSSTAB_FIN1_REGION_JOBLEVEL':
                 
-                pass #until FIN1 colas made with better test data
-                '''
-                #cols = ['Client_Region', 'PA_CUSTOM_FIN1', 'PA_CUSTOM_JOB_LEVEL']
-                cols = ['Client_REGION', 'PA_CUSTOM_JOB_LEVEL']
+                cols = ['Client_REGION', 'PA_CUSTOM_FIN1', 'PA_CUSTOM_JOB_LEVEL']
                 Active_df[newField] = crosstab_concat(Active_df,cols, sep='_')
-                #Start_df[newField] = crosstab_concat(Start_df,cols, sep='_') #deactivating because test data sucks
+                Start_df[newField] = crosstab_concat(Start_df,cols, sep='_') 
                 Exit_df[newField] = crosstab_concat(Exit_df,cols, sep='_')
-                #print(Active_df[newField])
 
                 #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
-                '''
 
             elif newField == 'PA_CROSSTAB_FIN1_JOBLEVEL_TENURE':
 
-                pass #until FIN1 colas made with better test data
-
-                '''
-                #cols = ['PA_CUSTOM_FIN1', 'PA_CUSTOM_JOB_LEVEL', 'Custom_Tenure_Group']
-                cols = ['PA_CUSTOM_JOB_LEVEL', 'Custom_Tenure_Group']
+                cols = ['PA_CUSTOM_FIN1', 'PA_CUSTOM_JOB_LEVEL', 'Custom_Tenure_Group']
                 Active_df[newField] = crosstab_concat(Active_df,cols, sep='_')
-                #Start_df[newField] = crosstab_concat(Start_df,cols, sep='_') #deactivating because test data sucks
+                Start_df[newField] = crosstab_concat(Start_df,cols, sep='_') 
                 Exit_df[newField] = crosstab_concat(Exit_df,cols, sep='_')
-                #print(Active_df[newField])
 
                 #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
-                '''
 
             elif newField == 'PA_CROSSTAB_FIN1_REGION_JOBLEVEL_TENURE':
 
-                pass #until FIN1 colas made with better test data
-
-                '''
-                #cols = ['PA_CUSTOM_FIN1', 'PA_CUSTOM_JOB_LEVEL', 'Custom_Tenure_Group']
-                cols = ['Client_REGION', 'PA_CUSTOM_JOB_LEVEL', 'Custom_Tenure_Group']
+                cols = ['PA_CUSTOM_FIN1', 'Client_REGION', 'PA_CUSTOM_JOB_LEVEL', 'Custom_Tenure_Group']
                 Active_df[newField] = crosstab_concat(Active_df,cols, sep='_')
-                #Start_df[newField] = crosstab_concat(Start_df,cols, sep='_') #deactivating because test data sucks
+                Start_df[newField] = crosstab_concat(Start_df,cols, sep='_') 
                 Exit_df[newField] = crosstab_concat(Exit_df,cols, sep='_')
-                print(Active_df[newField])
 
                 #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
-                '''
 
     print('output file name', foutname)
     print('EmployeeActiveFiles', EmployeeActiveFiles)
@@ -702,7 +569,21 @@ def main():
     print('Start_df row count: ', len(Start_df))
     print('Exit_df row count: ', len(Exit_df))
 
+    #print(Active_df[['Client_Management_Level','PA_CUSTOM_JOB_FAMILY','PA_CUSTOM_JOB_LEVEL','PA_CUSTOM_REGION','PA_CROSSTAB_REGION_LOCATION','Client_REGION','PA_CROSSTAB_FIN1_JOBLEVEL','PA_CROSSTAB_FIN1_REGION_JOBLEVEL','PA_CROSSTAB_FIN1_JOBLEVEL_TENURE','PA_CROSSTAB_FIN1_REGION_JOBLEVEL_TENURE']].sort_values('Client_REGION',ascending=True).head(15))
+
     #creating fields from Data
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--instruct_sheet", action='store', dest='instruct_sheet', help="name of instruction sheet")
+    parser.add_argument("--step_range", action='store', dest='step_range', help="named range of steps to execute, first row must be column headers")
+    args = parser.parse_args()
+    if args.instruct_sheet: 
+        INSTRUCTION_SHEET_NAME = args.instruct_sheet
+        print('setting instruct_sheet to ', args.instruct_sheet)
+    if args.step_range: 
+        STEPS_RANGE_NAME = args.step_range
+        print('setting step_range to ', args.step_range)
+
     main()
