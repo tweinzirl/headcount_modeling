@@ -176,6 +176,49 @@ def crosstab_concat(df,cols,sep='__'):
         c = c + sep + df[cols[i]]
     return c
 
+def get_hierarchy(df):
+    map_df = df[['Client_ID','Client_ID_MANAGER']].set_index('Client_ID')
+    emp = map_df.index.values.copy()
+    mappers = []
+
+    for i in range(1,8):
+        #http://pandas.pydata.org/pandas-docs/stable/indexing.html#deprecate-loc-reindex-listlike
+        man = map_df.loc[map_df.index.intersection(emp),'Client_ID_MANAGER'].reindex(emp).dropna().unique()
+        #print('level %d - num employees: %d  num managers: %d'%(i,len(emp),len(man)))
+
+        emp = man.copy()
+
+        #retrieve emp with these man
+        rel_df = map_df[map_df.Client_ID_MANAGER.isin(man)]
+        map_dict = rel_df.to_dict()
+        mappers.append(map_dict['Client_ID_MANAGER'])
+
+    management_chain = {}
+    for emp, man in mappers[0].items():
+        chain = [man] #chain is constructed from the bottom up
+        for rd in mappers[1:]:
+            if man in rd and rd[man]!=man:
+                next_man = rd[man]
+                chain.append(next_man)
+                man = next_man
+            else:
+                break
+        management_chain[emp] = chain
+
+    management_chain_topdown = management_chain.copy()
+    for key, chain in management_chain.items()[:]:
+        chain2 = chain[::-1] + [np.nan]*(7-len(chain)) #reverse the chain to get top down view and pad undefined levels with nan
+        #print(chain, chain2)
+        management_chain_topdown[key] = chain2
+
+    df = pd.DataFrame.from_dict(management_chain_topdown, orient='index')
+    df = df.rename({0:'PA_Leadership_Level_1',1:'PA_Leadership_Level_2',2:'PA_Leadership_Level_3',\
+        3:'PA_Leadership_Level_4',4:'PA_Leadership_Level_5',5:'PA_Leadership_Level_6',6:'PA_Leadership_Level_7'},axis='columns')
+
+    #print(df.head())
+
+    return df
+
 def main():
     #get the service
     service = get_service()
@@ -201,6 +244,11 @@ def main():
     Active_df = None #main data frame to hold Active employee data
     Start_df = None #main data frame to hold Start employee data
     Exit_df = None #main data frame to hold Exit employee data
+
+    Active_dfh = None #main data frame to hold Active employee data after hierarchy addition
+    Start_dfh = None #main data frame to hold Start employee dat after hierarchy additiona
+    Exit_dfh = None #main data frame to hold Exit employee dat after hierarchy additiona
+
 
     for row in Steps_df.index: 
         step = Steps_df.loc[row,'StepName'].split(':')[1].strip()
@@ -255,9 +303,9 @@ def main():
                     rangeName = 'Sheet1' 
                     tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadSheetId)
 
-                    #apply date change - note mm/dd/yy format
-                    date1 = '%d/%d/%s'%(int(start_mm),int(start_dd),start_yyyy[-2:])
-                    date2 = '%d/%d/%s'%(int(end_mm),int(end_dd),end_yyyy[-2:])
+                    #apply date change - note mm/dd/yyyy format
+                    date1 = '%d/%d/%d'%(int(start_mm),int(start_dd),int(start_yyyy))
+                    date2 = '%d/%d/%d'%(int(end_mm),int(end_dd),int(end_yyyy))
                     tmp_df.loc[tmp_df['Effective Date']==date1,'Effective Date']=date2
 
                     #cache file
@@ -376,6 +424,7 @@ def main():
                 Start_df[newField] = get_date_attribute(Start_df, sourceField, f)
                 Exit_df[newField] = get_date_attribute(Exit_df, sourceField, f)
             elif newField == 'Calendar_Year_Month':
+                #f = lambda x: '%d-%d'%(x.year,x.month)
                 f = lambda x: '%d-%d'%(x.year,x.month)
                 Active_df[newField] = get_date_attribute(Active_df, sourceField, f)
                 Start_df[newField] = get_date_attribute(Start_df, sourceField, f)
@@ -562,54 +611,24 @@ def main():
 
         if step == 'Calc Hierachy Cache': #this should happen once and be cached
             #if hierarchy cache not exist
+            #check if hierarchy cache exist
 
-            df = Active_df.copy()
+            #calculate if not exist
+            grped = Active_df.groupby('PA_Data_Effective_Date')
+            for ts, df_ts in grped:
+                print('seeking hierarchy from Active_df for timestamp:',ts)
+                Active_hier = get_hierarchy(df_ts)
+                #print(Active_hier.head())
 
-            map_df = df[['Client_ID','Client_ID_MANAGER']].set_index('Client_ID')
-            emp = map_df.index.values.copy()
-            mappers = []
+                #join the hierarchy with the timestamp df; then append the result to Active_dfh, initializing or appending as needed
+                if Active_dfh is None:
+                    Active_dfh = pd.merge(df_ts, Active_hier, left_on = 'Client_ID',right_index=True, how='left')
+                else:
+                    Active_dfh = Active_dfh.append(pd.merge(df_ts, Active_hier, left_on = 'Client_ID',right_index=True, how='left'),ignore_index=True)
 
-            for i in range(1,8):
-                #http://pandas.pydata.org/pandas-docs/stable/indexing.html#deprecate-loc-reindex-listlike
-                man = map_df.loc[map_df.index.intersection(emp),'Client_ID_MANAGER'].reindex(emp).dropna().unique()
-                print('level %d - num employees: %d  num managers: %d'%(i,len(emp),len(man)))
+                print('Active_dfh.shape:', len(Active_dfh), len(Active_dfh.columns))
 
-                emp = man.copy()
-
-                #retrieve emp with these man
-                rel_df = map_df[map_df.Client_ID_MANAGER.isin(man)]
-                map_dict = rel_df.to_dict()
-                mappers.append(map_dict['Client_ID_MANAGER'])
-
-            management_chain = {}
-            for emp, man in mappers[0].items():
-                chain = [man] #chain is constructed from the bottom up
-                for rd in mappers[1:]:
-                    if man in rd and rd[man]!=man:
-                        next_man = rd[man]
-                        chain.append(next_man)
-                        man = next_man
-                    else:
-                        break
-                        #chain.append(np.nan)
-                management_chain[emp] = chain
-
-            management_chain_topdown = management_chain.copy()
-            for key, chain in management_chain.items()[:]:
-                chain2 = chain[::-1] + [np.nan]*(7-len(chain)) #reverse the chain to get top down view and pad undefined levels with nan
-                print(chain, chain2)
-                management_chain_topdown[key] = chain2
-
-            df = pd.DataFrame.from_dict(management_chain_topdown, orient='index')
-            df = df.rename({0:'PA_Leadership_Level_1',1:'PA_Leadership_Level_2',2:'PA_Leadership_Level_3',\
-                3:'PA_Leadership_Level_4',4:'PA_Leadership_Level_5',5:'PA_Leadership_Level_6',6:'PA_Leadership_Level_7'},axis='columns')
-
-            print(df.head())
-
-            jned = pd.merge(Active_df, df, left_on = 'Client_ID',right_index=True)
-            print(jned.head(15))
-
-            #now pack the above into a function, calc hierarchy one unique date at a time, join, and then restack, and cache
+            #calculate for starts, exits?
 
     print('output file name', foutname)
     print('EmployeeActiveFiles', EmployeeActiveFiles)

@@ -27,7 +27,7 @@ Feb 10
 
 Feb 11:
    Session 1:
-      6 hr: 
+      7 hr: 
         --command line arguments to specify instruction sheet and instruction step range
         --refactor `Load File Into Memory` step
         --Refactor `CreateNewField_FromData` steps and test with new sample data
