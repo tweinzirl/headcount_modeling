@@ -17,9 +17,9 @@ from oauth2client.file import Storage
 
 #tw imports
 import pandas as pd
+import numpy as np
 import os
 import re
-import sys
 import argparse
 
 '''
@@ -560,6 +560,57 @@ def main():
                 #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
+        if step == 'Calc Hierachy Cache': #this should happen once and be cached
+            #if hierarchy cache not exist
+
+            df = Active_df.copy()
+
+            map_df = df[['Client_ID','Client_ID_MANAGER']].set_index('Client_ID')
+            emp = map_df.index.values.copy()
+            mappers = []
+
+            for i in range(1,8):
+                #http://pandas.pydata.org/pandas-docs/stable/indexing.html#deprecate-loc-reindex-listlike
+                man = map_df.loc[map_df.index.intersection(emp),'Client_ID_MANAGER'].reindex(emp).dropna().unique()
+                print('level %d - num employees: %d  num managers: %d'%(i,len(emp),len(man)))
+
+                emp = man.copy()
+
+                #retrieve emp with these man
+                rel_df = map_df[map_df.Client_ID_MANAGER.isin(man)]
+                map_dict = rel_df.to_dict()
+                mappers.append(map_dict['Client_ID_MANAGER'])
+
+            management_chain = {}
+            for emp, man in mappers[0].items():
+                chain = [man] #chain is constructed from the bottom up
+                for rd in mappers[1:]:
+                    if man in rd and rd[man]!=man:
+                        next_man = rd[man]
+                        chain.append(next_man)
+                        man = next_man
+                    else:
+                        break
+                        #chain.append(np.nan)
+                management_chain[emp] = chain
+
+            management_chain_topdown = management_chain.copy()
+            for key, chain in management_chain.items()[:]:
+                chain2 = chain[::-1] + [np.nan]*(7-len(chain)) #reverse the chain to get top down view and pad undefined levels with nan
+                print(chain, chain2)
+                management_chain_topdown[key] = chain2
+
+            df = pd.DataFrame.from_dict(management_chain_topdown, orient='index')
+            df = df.rename({0:'PA_Leadership_Level_1',1:'PA_Leadership_Level_2',2:'PA_Leadership_Level_3',\
+                3:'PA_Leadership_Level_4',4:'PA_Leadership_Level_5',5:'PA_Leadership_Level_6',6:'PA_Leadership_Level_7'},axis='columns')
+
+            print(df.head())
+
+            jned = pd.merge(Active_df, df, left_on = 'Client_ID',right_index=True)
+            print(jned.head(15))
+
+            #now pack the above into a function, calc hierarchy one unique date at a time, join, and then restack, and cache
+
     print('output file name', foutname)
     print('EmployeeActiveFiles', EmployeeActiveFiles)
     print('EmployeeStartFiles', EmployeeStartFiles)
@@ -568,6 +619,9 @@ def main():
     print('Active_df row count: ', len(Active_df))
     print('Start_df row count: ', len(Start_df))
     print('Exit_df row count: ', len(Exit_df))
+
+    #save active_df as test set for hierarchy calc
+    #Active_df.to_csv('localOutput/adf.csv',index=False)
 
     #print(Active_df[['Client_Management_Level','PA_CUSTOM_JOB_FAMILY','PA_CUSTOM_JOB_LEVEL','PA_CUSTOM_REGION','PA_CROSSTAB_REGION_LOCATION','Client_REGION','PA_CROSSTAB_FIN1_JOBLEVEL','PA_CROSSTAB_FIN1_REGION_JOBLEVEL','PA_CROSSTAB_FIN1_JOBLEVEL_TENURE','PA_CROSSTAB_FIN1_REGION_JOBLEVEL_TENURE']].sort_values('Client_REGION',ascending=True).head(15))
 
