@@ -22,9 +22,12 @@ import os
 import re
 import argparse
 
+import helpers
+
 '''
 usage:
-    >>> ./prototype_v2.py [instruction sheet] [instruction steps]
+    >>> ./prototype_v2.py  --instruct_sheet [instruction sheet] --step_range [instruction steps]
+    >>> ./prototype_v2.py  --instruct_sheet INSTRUCTIONS_V2 --step_range 'C15:L55'
     [instruction sheet] is the sheet name of the instruction set
     [instruction steps] are the steps to process; this range MUST include the column headings as row 0
 '''
@@ -249,6 +252,7 @@ def main():
     Start_dfh = None #main data frame to hold Start employee dat after hierarchy additiona
     Exit_dfh = None #main data frame to hold Exit employee dat after hierarchy additiona
 
+    PIVOT_SEG_CAT, PIVOT_SEG_PERIOD, PIVOT_SEG_TYPE = None, None, None #storage for pivot segments
 
     for row in Steps_df.index: 
         step = Steps_df.loc[row,'StepName'].split(':')[1].strip()
@@ -609,7 +613,7 @@ def main():
                 #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
-        if step == 'Calc Hierachy Cache': #this should happen once and be cached
+        if step == 'Calc Hierachy': #this should happen once and be cached
             #if hierarchy cache not exist
             #check if hierarchy cache exist
 
@@ -628,7 +632,83 @@ def main():
 
                 print('Active_dfh.shape:', len(Active_dfh), len(Active_dfh.columns))
 
+            #update status
+            update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+
             #calculate for starts, exits?
+
+        if step == 'CreateMetricOutput':
+            newField = Steps_df.loc[row,'Field1'].split(':')[1].strip()
+
+            #call the namedRanges PIVOT_SEG_CAT, PIVOT_SEG_PERIOD, PIVOT_SEG_TYPE if they are not already defined
+            spreadsheetId=BI_ENGINE_SHEET
+            if PIVOT_SEG_CAT is None:
+                tmp_df, tmp_range = read_sheet(service, rangeName='PIVOT_SEG_CAT', spreadsheetId=spreadsheetId)
+                PIVOT_SEG_CAT = tmp_df.values[:,0]
+            if PIVOT_SEG_PERIOD is None:
+                tmp_df, tmp_range = read_sheet(service, rangeName='PIVOT_SEG_PERIOD', spreadsheetId=spreadsheetId)
+                PIVOT_SEG_PERIOD = tmp_df.values[:,0]
+            if PIVOT_SEG_TYPE is None:
+                tmp_df, tmp_range = read_sheet(service, rangeName='PIVOT_SEG_TYPE', spreadsheetId=spreadsheetId)
+                PIVOT_SEG_TYPE = tmp_df.values[:,0]
+
+            if newField == 'Headcount_Begin_#':
+                pivot_seg_cat = 'Total'
+                pivot_seg_period = 'Year'
+                pivot_seg_type = 'Actual'
+                #algo is calculated start and end dates of the period, whether year or year-quarter
+                #people at start: Client_Date_Official_Job_Current_Job_Start < lower end point
+                #people at end: "" < upper end point
+                #then find unique people with no exits
+                if pivot_seg_period == 'Year':
+                    periods = Active_dfh['Year'].unique()
+                    for year in periods:
+                        #active headcounts
+                        start, end = helpers.get_date_endpoints(year=year,kind='year')
+                        #number people at start
+                        a_start = Active_dfh[Active_dfh['Client_Date_Official_Job_Current_Job_Start'].apply(pd.to_datetime) <= start]['Client_ID'].unique()
+                        nstart = a_start.size
+                        #number people at end
+                        a_end = Active_dfh[Active_dfh['Client_Date_Official_Job_Current_Job_Start'].apply(pd.to_datetime) <= end]['Client_ID'].unique().size
+                        nend = a_end.size
+                        #growth = nend - nstart
+                        growth = nend - nstart
+                        #move in/out numbers
+                        set_start = set(a_start)
+                        set_end = set(a_end)
+                        move_in = len(set_start.difference(set_end))
+                        move_out = len(set_end.difference(set_start))
+
+                        #stats for starts
+                        #number people starting inside the date interval [start, end)
+                        con1 = (start <= Start_df['Client_Date_Official_Job_Current_Job_Start'].apply(pd.to_datetime))
+                        con2 = (Start_df['Client_Date_Official_Job_Current_Job_Start'].apply(pd.to_datetime) < end)
+                        st_nstart = Start_df[con1 & con2]['Client'].unique().size
+
+                        #number people starting after start AND after end
+                        con3 = (Start_df['Client_Date_Official_Job_Current_Job_Start'].apply(pd.to_datetime) > end)
+                        st_pendingstart = Start_df[con1 & con3]['Client_ID'].unique().size
+
+                        #stats for exits
+                        #number people exiting inside the date interval [start, end)
+                        con1 = (start <= Exit_df['Client_Exit_Action_Date'].apply(pd.to_datetime))
+                        con2 = (Exit_df['Client_Exit_Action_Date'].apply(pd.to_datetime) < end)
+                        ex_nexit = Exit_df[con1 & con2]['Client_ID'].unique().size
+
+                        #number people starting after start AND after end
+                        con3 = (Exit_df['Client_Exit_Action_Date'].apply(pd.to_datetime) > end)
+                        ex_pendingexit = Exit_df[con1 & con3]['Client_ID'].unique().size
+
+                        denom = float(nstart)
+                        start_pct = st_nstart/denom
+                        exit_pct = ex_nexit/denom
+                        growth_pct = growth/denom
+                        move_in_pct = move_in/denom
+                        move_out_pct = move_out/denom
+
+
+                        #after testing, put this in function that returns
+                        #year, start, end, nstart, nend, growth, move_in, move_out, st_nstart, ex_nexit, st_pendingstart, ex_pendingexit, start_pct, exit_pct, growth_pct, move_in_pct, move_out_pct ### as dataframe so these records can all be appended
 
     print('output file name', foutname)
     print('EmployeeActiveFiles', EmployeeActiveFiles)
@@ -641,6 +721,8 @@ def main():
 
     #save active_df as test set for hierarchy calc
     #Active_df.to_csv('localOutput/adf.csv',index=False)
+    #tart_df.to_csv('localOutput/sdf.csv',index=False)
+    Exit_df.to_csv('localOutput/edf.csv',index=False)
 
     #print(Active_df[['Client_Management_Level','PA_CUSTOM_JOB_FAMILY','PA_CUSTOM_JOB_LEVEL','PA_CUSTOM_REGION','PA_CROSSTAB_REGION_LOCATION','Client_REGION','PA_CROSSTAB_FIN1_JOBLEVEL','PA_CROSSTAB_FIN1_REGION_JOBLEVEL','PA_CROSSTAB_FIN1_JOBLEVEL_TENURE','PA_CROSSTAB_FIN1_REGION_JOBLEVEL_TENURE']].sort_values('Client_REGION',ascending=True).head(15))
 
