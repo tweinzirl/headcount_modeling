@@ -8,7 +8,7 @@ def get_quarter(date):
     """
     return 1+(date.month-1)//3
 
-def quarter_start_end(quarter, year=None):
+def get_quarter_start_end(quarter, year=None):
     """
     Returns datetime.daet object for the start
     and end dates of `quarter` for the input `year`

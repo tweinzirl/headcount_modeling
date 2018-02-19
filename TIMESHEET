@@ -36,3 +36,7 @@ Feb 11:
 
 Feb 17:
     3 hour: Output metric design and prototype
+
+Feb 18:
+    2.5 hour - refactor CreateMetricOutput function
+    2 hour - refactor CreateMetricOutput function, works with Year, and XYZ_Period inputs
