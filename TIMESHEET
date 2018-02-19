@@ -40,3 +40,6 @@ Feb 17:
 Feb 18:
     2.5 hour - refactor CreateMetricOutput function
     2 hour - refactor CreateMetricOutput function, works with Year, and XYZ_Period inputs
+
+Feb 19:
+    1 hour - initial test of metric_output_actual function on Actual 'Total' and 'Custom_Tenure_Group' segments
