@@ -85,7 +85,11 @@ def main():
 
     #'''
     ### twmod below: now write this data to a new personal sheet
+
+    #########################################################################
+    ### manually change this variable to perform on a different spreadsheet ############
     spreadsheetId = '1D5UC6tTuCKECsw0hLJHfFKQzI_iXaYAzB_jwKqVX-Ic'
+    #########################################################################
     rangeName = 'Sheet1!A1:C'
 
     #example write: https://stackoverflow.com/questions/9690138/how-do-i-access-read-write-to-google-sheets-spreadsheets-with-python

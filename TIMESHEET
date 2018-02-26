@@ -43,3 +43,9 @@ Feb 18:
 
 Feb 19:
     1 hour - initial test of metric_output_actual function on Actual 'Total' and 'Custom_Tenure_Group' segments
+    3.5 hour onward 
+      -- hierarchy for starts and exits; match to min (max) date for Starts (Exits) per Client_ID among the Active records
+      -- full test of metric_output_actual
+
+Feb 25:
+    1 hour - testing and documentation
