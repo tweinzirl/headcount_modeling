@@ -47,39 +47,41 @@ Table of StepName in sequential order as appears in Spreadsheet and the Spreadsh
 
 StepName | Inputs (val1, val2, etc.) 
 
-Create Output File           | Field 1: Google drive path (not used)          
-                             | Field 2: output Tableau file                   
-Load File Into Memory        | Field 1: SpreadsheetId of input                
- [load active emp,           | Field 2: Startdate                             
-  starts, exits              | Field 3: Enddate                               
-  from Google Sheets]        | Field 4: RecordType                            
-                             | Field 5: Output location (not used)            
-                             | Field 6: Output file name                      
-Load Field Names             | Field 1: RecordType                            
- [get column names for       | Field 2: NamedRange (for reassigning col names)
-  remapping]                 |                                                
-                             |                                                
-MapFields_ObfuscateData      | Field 1: DataType (Active, Start, Exit)        
- [remap column names]        |                                                
-                             |                                                
-CreateNewField_FromMap       | Field 1: New field name                        
- [creat new column           | Field 2: UseNamedRange                         
-  according to inputs]       | Field 3: Old field name to remap               
-                             |                                                
-CreateNewField_FromExpression| Field 1: Year, Month, or Calendar_Year_Month 
- [different logic for        | Field 2: not used                            
-  each option in Field 1]    | Field 3: Source field name                   
-                             |                                              
-CreateNewField_FromData      | Field 1: field to work on
- [different logic for each   | Field 2: UsedNameRange (only for some Field 1 choices)
-  possible Field 1]          |
-                             |
-Calc Hierarchy               | Field 1, Field 2, etc. not used
-                             |
-CreateMetricOutput           | Field 1: PIVOT_SEG_TYPE (e.g., Actual)
- [creates all metrics        | Field 2: PIVOT_SEG_PERIOD (Year, Year-Quarter)
-  for PIVOT_SEG_CAT, minus   | Field 3: PIVOT_SEG_CAT (column to aggregate over)
-  planning, forecasting]
+|StepName                     | Field inputs                                   |
+| --------------------------- | ---------------------------------------------- |
+|**Create Output File**           | Field 1: Google drive path (not used)          |
+|                             | Field 2: output Tableau file                   |
+|**Load File Into Memory**        | Field 1: SpreadsheetId of input                |
+| [load active emp,           | Field 2: Startdate                             |
+|  starts, exits              | Field 3: Enddate                               |
+|  from Google Sheets]        | Field 4: RecordType                            |
+|                             | Field 5: Output location (not used)            |
+|                             | Field 6: Output file name                      |
+|**Load Field Names**             | Field 1: RecordType                            |
+| [get column names for       | Field 2: NamedRange (for reassigning col names)|
+|  remapping]                 |                                                |
+|                             |                                                |
+|**MapFields_ObfuscateData**      | Field 1: DataType (Active, Start, Exit)       | 
+| [remap column names]        |                                               | 
+|                             |                                               | 
+|**CreateNewField_FromMap**       | Field 1: New field name                       | 
+| [creat new column           | Field 2: UseNamedRange                        | 
+|  according to inputs]       | Field 3: Old field name to remap              | 
+|                             |                                               | 
+|**CreateNewField_FromExpression**| Field 1: Year, Month, or Calendar_Year_Month| 
+| [different logic for        | Field 2: not used                           | 
+|  each option in Field 1]    | Field 3: Source field name                  | 
+|                             |                                             | 
+|**CreateNewField_FromData**      | Field 1: field to work on                   |
+| [different logic for each   | Field 2: UsedNameRange (only for some Field 1 choices)|
+|  possible Field 1]          |                                                       |
+|                             |                                                       |
+|**Calc Hierarchy               | Field 1, Field 2, etc. not used                       |
+|                             |                                                       |
+|**CreateMetricOutput**           | Field 1: PIVOT_SEG_TYPE (e.g., Actual)                |
+| [creates all metrics        | Field 2: PIVOT_SEG_PERIOD (Year, Year-Quarter)    |
+|  for PIVOT_SEG_CAT, minus   | Field 3: PIVOT_SEG_CAT (column to aggregate over) |
+|  planning, forecasting]     |                                                   |
 
 Loading Active/Start/Exit data from Google Sheet is slow (~minutes).  THe `Load File Into Memory` step always first checks if the data is cached locally on disk. If so, it is read into
 memory.  If no, it is pulled from the Google Sheet and cached so that subsequent runs
