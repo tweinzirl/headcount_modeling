@@ -38,14 +38,15 @@ sheet BI engine, the instruction sheet within the engine, and the name range def
 steps to execute.  If none are presented, the script uses values hard coded in the script 
 (BI_ENGINE_SHEET, INSTRUCTION_SHEET_NAME, STEPS_RANGE_NAME).
 
+The default BI Enging is outlined in my personal, viewable (but not writable) here:
+https://drive.google.com/open?id=1TM6LcvN3yf_1zn9XBQwztmVP01Q89u6xZWIMaCzzHA4
+
 Step handling happens in the main() function.  All steps in STEPS_RANGE_NAME are pulled and 
 stored in memory as a Pandas dataframe.  Steps are iterated in order.  If the script 
 recognizes the step, it will call the appropriate function using the inputs from the
 field names if needed. The step will be skipped if it is not recognized.
 
 Table of StepName in sequential order as appears in Spreadsheet and the Spreadsheet inputs after reworking:
-
-StepName | Inputs (val1, val2, etc.) 
 
 |StepName                     | Field inputs                                   |
 | --------------------------- | ---------------------------------------------- |
