@@ -1,0 +1,3 @@
+This is a cleaned up google sheet.  It has updated steps which are more broken out and clear.
+
+https://docs.google.com/spreadsheets/d/1JkOgCIp1gOqN0sr5KDgoGW6XRxAIDst0dPTCzzeL5uo/edit?usp=sharing
