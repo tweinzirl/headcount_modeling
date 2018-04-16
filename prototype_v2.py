@@ -217,7 +217,7 @@ def get_hierarchy(df):
 
     return df
 
-def metric_output_actual(Active_df, Start_df, Exit_df, pivot_seg_period, pivot_seg_cat='Total', segment_filter=None, segment_name='Total', output_columns=None, segments=None):
+def metric_output_actual(Active_df, Start_df, Exit_df, pivot_seg_period, pivot_seg_cat='Total', segment_name='Total', output_columns=None, segments=None):
 
     if pivot_seg_period == 'Year': 
         periods = Active_df['Year'].unique()
@@ -298,7 +298,7 @@ def metric_output_actual(Active_df, Start_df, Exit_df, pivot_seg_period, pivot_s
 
                 for ms in metrics_dict.keys():
                     #follow order in output_metrics_columns: 'Segment_Category','Segment_Filter', 'Segment_Name', 'Segment_Period','Metric_Name', 'ACTUAL','PLAN'
-                    output_lists.append([pivot_seg_cat, segment_filter, segment_name, p, ms, metrics_dict[ms], np.nan])
+                    output_lists.append([pivot_seg_cat, segment_name, p, ms, metrics_dict[ms], np.nan])
 
         else: #pivot_seg_cat==Total
 
@@ -331,7 +331,7 @@ def metric_output_actual(Active_df, Start_df, Exit_df, pivot_seg_period, pivot_s
 
             for ms in metrics_dict.keys():
                 #follow order in output_metrics_columns: 'Segment_Category','Segment_Filter', 'Segment_Name', 'Segment_Period','Metric_Name', 'ACTUAL','PLAN'
-                output_lists.append([pivot_seg_cat, segment_filter, segment_name, p, ms, metrics_dict[ms], np.nan])
+                output_lists.append([pivot_seg_cat, segment_name, p, ms, metrics_dict[ms], np.nan])
 
     return pd.DataFrame(output_lists,columns=output_columns)
 
@@ -368,7 +368,7 @@ def main():
 
     #output metrics df
     #columns = ['Segment_Category','Segment_Filter', 'Segment_Name', 'Segment_Period', 'Headcount_Begin_#','Headcount_End_#','Start_#','Exit_#','Pending_Start_#','Pending_Exit_#','Growth_#','Move_In_#','Move_Out_#','Start_%','Exit_%','Growth_%','Move_In_%','Move_Out_%','To_Be_Hired_#','Plan_Headcount_End_#','Plan_%_Headcount_End_#']
-    output_metrics_columns = ['Segment_Category','Segment_Filter', 'Segment_Name', 'Segment_Period', 'Metric_Name', 'ACTUAL','PLAN']
+    output_metrics_columns = ['Segment_Category', 'Segment_Name', 'Segment_Period', 'Metric_Name', 'ACTUAL','PLAN']
     output_metrics_df = pd.DataFrame(columns=output_metrics_columns)
 
 
@@ -809,27 +809,17 @@ def main():
             #people at end: "" < upper end point
             #then find unique people with no exits
 
-            #determine the segment_filter and segment_name outside the function, then call it with the optional flags specified
             #if pivot_seg_cat == 'Total', the other two flags are not used
             #otherwise the other two flags need to be specified
 
             #look up segment categories if not pivot_seg_cat != 'Total' and run the function for each segment categories
             if pivot_seg_cat != 'Total':
                 segment_names = Active_dfh[pivot_seg_cat].unique()
-                '''
-                for segment_name in segment_names:
-                    print(pivot_seg_cat, segment_name)
-                    tmp_df = metric_output_actual(Active_dfh, Start_dfh, Exit_dfh, pivot_seg_period, pivot_seg_cat=pivot_seg_cat, segment_name=segment_name, output_columns = output_metrics_columns)
-                    output_metrics_df = output_metrics_df.append( tmp_df, ignore_index=True)
-                '''
                 tmp_df = metric_output_actual(Active_dfh, Start_dfh, Exit_dfh, pivot_seg_period, pivot_seg_cat, output_columns = output_metrics_columns, segments=segment_names)
                 output_metrics_df = output_metrics_df.append( tmp_df, ignore_index=True)
             else:
                 tmp_df = metric_output_actual(Active_dfh, Start_dfh, Exit_dfh, pivot_seg_period, pivot_seg_cat=pivot_seg_cat, output_columns = output_metrics_columns)
                 output_metrics_df = output_metrics_df.append( tmp_df, ignore_index=True)
-
-            #print(tmp_df.head(10))
-            #output_metrics_df = output_metrics_df.append( tmp_df, ignore_index=True)
 
             #update sheet if step not already completed
             update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
