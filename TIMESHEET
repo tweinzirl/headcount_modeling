@@ -49,3 +49,8 @@ Feb 19:
 
 Feb 25:
     1 hour - testing and documentation
+
+April 15:
+1 hour: retrieving all of Mike's csv files of HRIS abstracts: https://drive.google.com/drive/u/1/folders/1jG7WHwm94-zqI-bAcUURhWe0CXuhcMcx
+        and testing the pipeline works when all data is combined
+7 hours: rewroted and tested metric calculation function.  Revision is now more than 2x faster and uses optimized pandas dataframe queries for segment filtering.

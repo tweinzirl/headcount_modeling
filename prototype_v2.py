@@ -217,48 +217,95 @@ def get_hierarchy(df):
 
     return df
 
-def metric_output_actual(Active_dfh, Start_df, Exit_df, pivot_seg_period, pivot_seg_cat='Total', segment_filter=None, segment_name='Total', output_columns=None):
-    #calculate start, end segments
+def metric_output_actual(Active_df, Start_df, Exit_df, pivot_seg_period, pivot_seg_cat='Total', segment_filter=None, segment_name='Total', output_columns=None, segments=None):
+
     if pivot_seg_period == 'Year': 
-        periods = Active_dfh['Year'].unique()
+        periods = Active_df['Year'].unique()
         start_end_collection = [helpers.get_date_endpoints(year=year,kind='year') for year in periods]
 
     elif pivot_seg_period == 'XYZ_Period': 
-        periods = Active_dfh['XYZ_Period'].unique()
+        periods = Active_df['XYZ_Period'].unique()
         yq = [tok.split('-Q') for tok in periods]
         start_end_collection = [helpers.get_date_endpoints(q=int(x[1]), year=int(x[0]), kind='quarter') for x in yq]
 
+    #something for total 
+
+    if pivot_seg_cat!='Total':
+        grped_active = Active_df.groupby(pivot_seg_cat)
+        grped_start = Start_df.groupby(pivot_seg_cat)
+        grped_exit = Exit_df.groupby(pivot_seg_cat)
+
+        segments=grped_active.groups.keys()
+
+    hc_con1 = 'Client_Date_Official_Job_Current_Job_Start.apply(@pd.to_datetime) <=@start'
+    hc_con2 = 'Client_Date_Official_Job_Current_Job_Start.apply(@pd.to_datetime) <=@end'
+
+    start_con1 = 'Client_Date_Official_Job_Current_Job_Start.apply(@pd.to_datetime) >= @start'
+    start_con2 = 'Client_Date_Official_Job_Current_Job_Start.apply(@pd.to_datetime) < @end'
+    start_con3 = 'Client_Date_Official_Job_Current_Job_Start.apply(@pd.to_datetime) > @end'
+    start_con4 = 'Client_Date_Hire.apply(@pd.to_datetime) >= @start'
+    start_con5 = 'Client_Date_Hire.apply(@pd.to_datetime) < @end'
+
+    exit_con1 = 'Client_Exit_Action_Date.apply(@pd.to_datetime) >= @start'
+    exit_con2 = 'Client_Exit_Action_Date.apply(@pd.to_datetime) < @end'
+    exit_con3 = 'Client_Exit_Action_Date.apply(@pd.to_datetime) > @end'
+
+    output_lists = []
     for p, sec in zip(periods,start_end_collection):
         start, end = sec
 
-        ###set conditions here
-        hc_con1 = (Active_dfh['Client_Date_Official_Job_Current_Job_Start'].apply(pd.to_datetime) <= start)
-        hc_con2 = (Active_dfh['Client_Date_Official_Job_Current_Job_Start'].apply(pd.to_datetime) <= end)
+        if pivot_seg_cat!='Total':
+            for segment_name in segments:
+                segment_con = '%s=="%s"'%(pivot_seg_cat,segment_name)
 
-        start_con1 = (Start_df['Client_Date_Official_Job_Current_Job_Start'].apply(pd.to_datetime) >= start)
-        start_con2 = (Start_df['Client_Date_Official_Job_Current_Job_Start'].apply(pd.to_datetime) < end)
-        start_con3 = (Start_df['Client_Date_Official_Job_Current_Job_Start'].apply(pd.to_datetime) > end)
-        start_con4 = (Start_df['Client_Date_Hire'].apply(pd.to_datetime) >= start)
-        start_con5 = (Start_df['Client_Date_Hire'].apply(pd.to_datetime) < end)
+                adf=grped_active.get_group(segment_name)
+                a_start = adf.query(hc_con1)['Client_ID'].unique()
+                begin_hc = a_start.size
 
-        exit_con1 = (Exit_df['Client_Exit_Action_Date'].apply(pd.to_datetime) >= start)
-        exit_con2 = (Exit_df['Client_Exit_Action_Date'].apply(pd.to_datetime) < end)
-        exit_con3 = (Exit_df['Client_Exit_Action_Date'].apply(pd.to_datetime) > end) #this is going to capture all exits beyond current period as well, which is not what is desired
+                a_end = adf.query(hc_con2)['Client_ID'].unique()
+                end_hc = a_end.size
+                growth = end_hc - begin_hc
+                #move in/out numbers
+                set_start = set(a_start)
+                set_end = set(a_end)
+                move_in = len(set_end.difference(set_start)) #present at end of period but not at beginning
+                move_out = len(set_start.difference(set_end)) #present at start of period but not at end
 
-        segment_filter = segment_name 
+                try:
+                    sdf=grped_start.get_group(segment_name)
+                    nstart = sdf.query('%s & %s'%(start_con1,start_con2))['Client_ID'].unique().size
+                    pending_nstart=sdf.query('%s & %s & %s'%(start_con3,start_con4,start_con5))['Client_ID'].unique().size
+                except KeyError:
+                    nstart=0
+                    pending_nstart=0
 
-        if pivot_seg_cat != 'Total':
-            seg_con_active = (Active_dfh[pivot_seg_cat]==segment_name)
-            seg_con_start = (Start_df[pivot_seg_cat]==segment_name)
-            seg_con_exit = (Exit_df[pivot_seg_cat]==segment_name)
+                try:
+                    edf=grped_exit.get_group(segment_name)
+                    nexit = edf.query('%s & %s'%(exit_con1,exit_con2))['Client_ID'].unique().size
+                    pending_nexit = edf.query('%s & %s'%(exit_con1,exit_con3))['Client_ID'].unique().size
+                except KeyError:
+                    nexit=0
+                    pending_nexit=0
 
-            #number people at start
-            arg = np.where(hc_con1 & seg_con_active)[0]
-            a_start = Active_dfh.iloc[arg]['Client_ID'].unique()
+                denom = begin_hc > 0 and float(begin_hc) or 1. #set denom to 1. if begin_hc is 0
+                start_pct = nstart/denom
+                exit_pct = nexit/denom
+                growth_pct = growth/denom
+                move_in_pct = move_in/denom
+                move_out_pct = move_out/denom
+
+                metrics_dict = {'Headcount_Begin_#':begin_hc, 'Headcount_End_#':end_hc, 'Start_#':nstart, 'Exit_#':nexit, 'Pending_Start_#':pending_nstart, 'Pending_Exit_#': pending_nexit, 'Growth_#': growth, 'Move_In_#': move_in, 'Move_Out_#': move_out, 'Start_%': start_pct, 'Exit_%': exit_pct, 'Growth_%': growth_pct, 'Move_In_%': move_in_pct, 'Move_Out_%':move_out_pct}
+
+                for ms in metrics_dict.keys():
+                    #follow order in output_metrics_columns: 'Segment_Category','Segment_Filter', 'Segment_Name', 'Segment_Period','Metric_Name', 'ACTUAL','PLAN'
+                    output_lists.append([pivot_seg_cat, segment_filter, segment_name, p, ms, metrics_dict[ms], np.nan])
+
+        else: #pivot_seg_cat==Total
+
+            a_start = Active_df.query(hc_con1)['Client_ID'].unique()
             begin_hc = a_start.size
-            #number people at end
-            arg = np.where(hc_con2 & seg_con_active)[0]
-            a_end = Active_dfh.iloc[arg]['Client_ID'].unique()
+            a_end = Active_df.query(hc_con2)['Client_ID'].unique()
+
             end_hc = a_end.size
             growth = end_hc - begin_hc
             #move in/out numbers
@@ -266,107 +313,25 @@ def metric_output_actual(Active_dfh, Start_df, Exit_df, pivot_seg_period, pivot_
             set_end = set(a_end)
             move_in = len(set_end.difference(set_start)) #present at end of period but not at beginning
             move_out = len(set_start.difference(set_end)) #present at start of period but not at end
-            #stats for starts, number people starting inside the date interval [start, end)
-            arg = np.where(start_con1 & start_con2 & seg_con_start)[0]
-            nstart = Start_df.iloc[arg]['Client_ID'].unique().size
-            #number people starting after end AND who were hired in the interval
-            arg = np.where(start_con3 & start_con4 & start_con5 & seg_con_start)[0]
-            pending_nstart = Start_df.iloc[arg]['Client_ID'].unique().size
-            #stats for exits, number people exiting inside the date interval [start, end)
-            arg = np.where(exit_con1 & exit_con2 & seg_con_exit)[0]
-            nexit = Exit_df.iloc[arg]['Client_ID'].unique().size
-            #number people starting before start AND exiting after end
-            arg = np.where(exit_con1 & exit_con3 & seg_con_exit)[0]
-            pending_nexit = Exit_df.iloc[arg]['Client_ID'].unique().size
 
-            '''
-            #number people at start
-            a_start = Active_dfh[hc_con1 & seg_con_active]['Client_ID'].unique()
-            begin_hc = a_start.size
-            #number people at end
-            a_end = Active_dfh[hc_con2 & seg_con_active]['Client_ID'].unique()
-            end_hc = a_end.size
-            growth = end_hc - begin_hc
-            #move in/out numbers
-            set_start = set(a_start)
-            set_end = set(a_end)
-            move_in = len(set_end.difference(set_start)) #present at end of period but not at beginning
-            move_out = len(set_start.difference(set_end)) #present at start of period but not at end
-            #stats for starts, number people starting inside the date interval [start, end)
-            nstart = Start_df[start_con1 & start_con2 & seg_con_start]['Client_ID'].unique().size
-            #number people starting after end AND who were hired in the interval
-            pending_nstart = Start_df[start_con3 & start_con4 & start_con5 & seg_con_start]['Client_ID'].unique().size
-            #stats for exits, number people exiting inside the date interval [start, end)
-            nexit = Exit_df[exit_con1 & exit_con2 & seg_con_exit]['Client_ID'].unique().size
-            #number people starting before start AND exiting after end
-            pending_nexit = Exit_df[exit_con1 & exit_con3 & seg_con_exit]['Client_ID'].unique().size
-            '''
-        else:
-            '''
-            #number people at start
-            a_start = Active_dfh[hc_con1]['Client_ID'].unique()
-            begin_hc = a_start.size
-            #number people at end
-            a_end = Active_dfh[hc_con2]['Client_ID'].unique()
-            end_hc = a_end.size
-            growth = end_hc - begin_hc
-            #move in/out numbers
-            set_start = set(a_start)
-            set_end = set(a_end)
-            move_in = len(set_end.difference(set_start)) #present at end of period but not at beginning
-            move_out = len(set_start.difference(set_end)) #present at start of period but not at end
-            #stats for starts, number people starting inside the date interval [start, end)
-            nstart = Start_df[start_con1 & start_con2]['Client_ID'].unique().size
-            #number people starting after end AND who were hired in the interval
-            pending_nstart = Start_df[start_con3 & start_con4 & start_con5]['Client_ID'].unique().size
-            #stats for exits, number people exiting inside the date interval [start, end)
-            nexit = Exit_df[exit_con1 & exit_con2]['Client_ID'].unique().size
-            #number people starting before start AND exiting after end
-            pending_nexit = Exit_df[exit_con1 & exit_con3]['Client_ID'].unique().size
-            '''
+            nstart = Start_df.query('%s & %s'%(start_con1,start_con2))['Client_ID'].unique().size
+            pending_nstart=Start_df.query('%s & %s & %s'%(start_con3,start_con4,start_con5))['Client_ID'].unique().size
 
-            #number people at start
-            arg = np.where(hc_con1)[0]
-            a_start = Active_dfh.iloc[arg]['Client_ID'].unique()
-            begin_hc = a_start.size
-            #number people at end
-            arg = np.where(hc_con2)[0]
-            a_end = Active_dfh.iloc[arg]['Client_ID'].unique()
-            end_hc = a_end.size
-            growth = end_hc - begin_hc
-            #move in/out numbers
-            set_start = set(a_start)
-            set_end = set(a_end)
-            move_in = len(set_end.difference(set_start)) #present at end of period but not at beginning
-            move_out = len(set_start.difference(set_end)) #present at start of period but not at end
-            #stats for starts, number people starting inside the date interval [start, end)
-            arg = np.where(start_con1 & start_con2)[0]
-            nstart = Start_df.iloc[arg]['Client_ID'].unique().size
-            #number people starting after end AND who were hired in the interval
-            arg = np.where(start_con3 & start_con4 & start_con5)[0]
-            pending_nstart = Start_df.iloc[arg]['Client_ID'].unique().size
-            #stats for exits, number people exiting inside the date interval [start, end)
-            arg = np.where(exit_con1 & exit_con2)[0]
-            nexit = Exit_df.iloc[arg]['Client_ID'].unique().size
-            #number people starting before start AND exiting after end
-            arg = np.where(exit_con1 & exit_con3)[0]
-            pending_nexit = Exit_df.iloc[arg]['Client_ID'].unique().size
+            nexit = Exit_df.query('%s & %s'%(exit_con1,exit_con2))['Client_ID'].unique().size
+            pending_nexit = Exit_df.query('%s & %s'%(exit_con1,exit_con3))['Client_ID'].unique().size
 
-        denom = begin_hc > 0 and float(begin_hc) or 1. #set denom to 1. if begin_hc is 0
-        start_pct = nstart/denom
-        exit_pct = nexit/denom
-        growth_pct = growth/denom
-        move_in_pct = move_in/denom
-        move_out_pct = move_out/denom
+            denom = begin_hc > 0 and float(begin_hc) or 1. #set denom to 1. if begin_hc is 0
+            start_pct = nstart/denom
+            exit_pct = nexit/denom
+            growth_pct = growth/denom
+            move_in_pct = move_in/denom
+            move_out_pct = move_out/denom
 
-        metrics_dict = {'Headcount_Begin_#':begin_hc, 'Headcount_End_#':end_hc, 'Start_#':nstart, 'Exit_#':nexit, 'Pending_Start_#':pending_nstart, 'Pending_Exit_#': pending_nexit, 'Growth_#': growth, 'Move_In_#': move_in, 'Move_Out_#': move_out, 'Start_%': start_pct, 'Exit_%': exit_pct, 'Growth_%': growth_pct, 'Move_In_%': move_in_pct, 'Move_Out_%':move_out_pct}
+            metrics_dict = {'Headcount_Begin_#':begin_hc, 'Headcount_End_#':end_hc, 'Start_#':nstart, 'Exit_#':nexit, 'Pending_Start_#':pending_nstart, 'Pending_Exit_#': pending_nexit, 'Growth_#': growth, 'Move_In_#': move_in, 'Move_Out_#': move_out, 'Start_%': start_pct, 'Exit_%': exit_pct, 'Growth_%': growth_pct, 'Move_In_%': move_in_pct, 'Move_Out_%':move_out_pct}
 
-
-        output_lists = []
-
-        for ms in metrics_dict.keys():
-            #follow order in output_metrics_columns: 'Segment_Category','Segment_Filter', 'Segment_Name', 'Segment_Period','Metric_Name', 'ACTUAL','PLAN'
-            output_lists.append([pivot_seg_cat, segment_filter, segment_name, p, ms, metrics_dict[ms], np.nan])
+            for ms in metrics_dict.keys():
+                #follow order in output_metrics_columns: 'Segment_Category','Segment_Filter', 'Segment_Name', 'Segment_Period','Metric_Name', 'ACTUAL','PLAN'
+                output_lists.append([pivot_seg_cat, segment_filter, segment_name, p, ms, metrics_dict[ms], np.nan])
 
     return pd.DataFrame(output_lists,columns=output_columns)
 
@@ -851,15 +816,20 @@ def main():
             #look up segment categories if not pivot_seg_cat != 'Total' and run the function for each segment categories
             if pivot_seg_cat != 'Total':
                 segment_names = Active_dfh[pivot_seg_cat].unique()
+                '''
                 for segment_name in segment_names:
                     print(pivot_seg_cat, segment_name)
                     tmp_df = metric_output_actual(Active_dfh, Start_dfh, Exit_dfh, pivot_seg_period, pivot_seg_cat=pivot_seg_cat, segment_name=segment_name, output_columns = output_metrics_columns)
-
+                    output_metrics_df = output_metrics_df.append( tmp_df, ignore_index=True)
+                '''
+                tmp_df = metric_output_actual(Active_dfh, Start_dfh, Exit_dfh, pivot_seg_period, pivot_seg_cat, output_columns = output_metrics_columns, segments=segment_names)
+                output_metrics_df = output_metrics_df.append( tmp_df, ignore_index=True)
             else:
                 tmp_df = metric_output_actual(Active_dfh, Start_dfh, Exit_dfh, pivot_seg_period, pivot_seg_cat=pivot_seg_cat, output_columns = output_metrics_columns)
+                output_metrics_df = output_metrics_df.append( tmp_df, ignore_index=True)
 
             #print(tmp_df.head(10))
-            output_metrics_df = output_metrics_df.append( tmp_df, ignore_index=True)
+            #output_metrics_df = output_metrics_df.append( tmp_df, ignore_index=True)
 
             #update sheet if step not already completed
             update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
@@ -875,9 +845,9 @@ def main():
     print('Output metrics df:\n',output_metrics_df)
 
     #save active_df as test set for hierarchy calc
-    #Active_df.to_csv('localOutput/adf.csv',index=False)
-    #Start_df.to_csv('localOutput/sdf.csv',index=False)
-    #Exit_df.to_csv('localOutput/edf.csv',index=False)
+    Active_df.to_csv('localOutput/adf.csv',index=False)
+    Start_df.to_csv('localOutput/sdf.csv',index=False)
+    Exit_df.to_csv('localOutput/edf.csv',index=False)
 
     if TableauInputFile is not None:
         output_metrics_df.to_csv(TableauInputFile,index=False)
