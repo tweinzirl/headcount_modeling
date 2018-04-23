@@ -139,21 +139,22 @@ def update_status_skipped(service, Steps_df, row, spreadsheetId):
                spreadsheetId=spreadsheetId, range=rangeName, valueInputOption='RAW', 
                body=body).execute()
 
-def get_tenureGroup(df,tenure_df):
-    delta = pd.to_datetime(df['PA_Data_Effective_Date'], format='%m/%d/%Y') - \
-		pd.to_datetime(df['Client_Date_Official_Job_Current_Job_Start'], format='%m/%d/%Y')
+def get_tenureGroup(df,tenure_df, effective_date='PA_Data_Effective_Date', start_date='Client_Date_Official_Job_Current_Job_Start'):
+    delta = pd.to_datetime(df[effective_date], format='%m/%d/%Y') - \
+		pd.to_datetime(df[start_date], format='%m/%d/%Y')
     delta = delta.map(lambda x: x.days)/365.25
 
     tenureGroup = []
-    tenure = []
+    #tenure = []
 
     for i in range(len(delta)):
-        delta2 = abs(tenure_df['PA_TENURE_YRS'] - delta.iloc[i])
+        #delta2 = abs(tenure_df['PA_TENURE_YRS'] - delta.iloc[i])
+        delta2 = abs(tenure_df[tenure_df.columns[0]] - delta.iloc[i])
         am = pd.Series.idxmin(delta2)
-        tenureGroup.append(tenure_df.loc[am,'Custom_Tenure_Group'])
-        tenure.append(delta.iloc[i])
+        tenureGroup.append(tenure_df.loc[am,tenure_df.columns[1]])
+        #tenure.append(delta.iloc[i])
 
-    return tenureGroup, tenure
+    return tenureGroup#, tenure
 
 def get_fin_unit(df,fin_df,newField):
     map_dict = fin_df[['PA_ORG_FINANCIAL_LL_UNIT_CODE','CUSTOM_FIN1','CUSTOM_FIN2']].to_dict('list')
@@ -526,11 +527,6 @@ def main():
             for a,b in zip(map_dict[namedRangeColumns[0]], map_dict[namedRangeColumns[1]]):
                 mapper[a] = b
 
-            #Active_df[newField] = Active_df['Client_Job_Family_Detailed'].map(mapper)
-            #Start_df[newField] = Start_df['Client_Job_Family_Detailed'].map(mapper) 
-            #Start_df['Client_Job_Family_Detailed'] = Start_df['Client_Job_Family_Detailed'].map(mapper) 
-            #Exit_df[newField] = Exit_df['Client_Job_Family_Detailed'].map(mapper)
-
             Active_df[newField] = Active_df[oldField].map(mapper)
             Start_df[newField] = Start_df[oldField].map(mapper) 
             Exit_df[newField] = Exit_df[oldField].map(mapper)
@@ -561,11 +557,65 @@ def main():
 
         if step == 'CreateNewField_FromData': #this step happens every time since it happens in memory
             newField = Steps_df.loc[row,'Field1'].split(':')[1].strip()
+            rangeName = Steps_df.loc[row,'Field2'].split(':')[1].strip()
+            sourceField = Steps_df.loc[row,'Field3'].split(':')[1].strip()
+            namedRangeColumns = [col.strip() for col in Steps_df.loc[row,'Field4'].split(':')[1].split(',')]
+            func_to_apply = Steps_df.loc[row,'Field5'].split(':')[1].strip()
+            extra_field1 = Steps_df.loc[row,'Field6'].split(':')[1].strip()
+            extra_field2 = Steps_df.loc[row,'Field7'].split(':')[1].strip()
             
             if newField == 'Active_Start_Period' or newField == 'Active_End_Period': #not sure what these columns are supposed to mean, skipping
                 update_status_skipped(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
-            elif newField == 'XYZ_Period':
+            else: #newField == 'XYZ_Period':
+
+                #retrieve ActivityPeriod named range and store as dict
+                spreadsheetId=BI_ENGINE_SHEET
+                tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadsheetId)
+
+                if func_to_apply == 'None':
+
+                    #######temporary hack
+                    if 'PA_ORG_FINANCIAL_LL_UNIT_CODE' in tmp_df.columns: 
+                        tmp_df['PA_ORG_FINANCIAL_LL_UNIT_CODE'] = tmp_df['PA_ORG_FINANCIAL_LL_UNIT_CODE'].str.replace('LL','L2')
+                    #######temporary hack
+
+                    #map from Calendar_Year_Month to new XYZ_Period
+                    print(namedRangeColumns, tmp_df.columns)
+                    map_dict = tmp_df[namedRangeColumns].to_dict('list')
+                    print('map_dict:',map_dict)
+                    mapper = {}
+                    for a,b in zip(map_dict[namedRangeColumns[0]], map_dict[namedRangeColumns[1]]):
+                        mapper[a] = b
+
+                    print('mapper:',mapper)
+
+                    Active_df[newField] = Active_df[sourceField].map(mapper)
+                    Start_df[newField] = Start_df[sourceField].map(mapper)
+                    Exit_df[newField] = Exit_df[sourceField].map(mapper)
+
+                    print(Active_df[[sourceField,newField]].head())
+                    print(Active_df[newField].unique())
+
+                else: #call the function 
+                    func_to_apply = eval(func_to_apply)
+                    tmp_df[namedRangeColumns[0]] = tmp_df[namedRangeColumns[0]].astype(float)
+
+                    func_output = func_to_apply(Active_df, tmp_df, effective_date=sourceField, start_date=extra_field1)
+                    Active_df[namedRangeColumns[1]] = func_output
+                
+                    func_output = func_to_apply(Start_df, tmp_df, effective_date=sourceField, start_date=extra_field1)
+                    Start_df[namedRangeColumns[1]] = func_output
+
+                    func_output = func_to_apply(Exit_df, tmp_df, effective_date=sourceField, start_date=extra_field1)
+                    Exit_df[namedRangeColumns[1]] = func_output
+
+                    print(Active_df[namedRangeColumns[1]].head())
+
+                #if step not already processed, mark the sheet to show it has been processed
+                update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+
+                '''
                 rangeName = Steps_df.loc[row,'Field2'].split(':')[1].strip()
 
                 #retrieve ActivityPeriod named range and store as dict
@@ -584,8 +634,9 @@ def main():
 
                 #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+                '''
 
-
+            '''
             elif newField == 'PA_CUSTOM_TENURE_GRP':
                 rangeName = Steps_df.loc[row,'Field2'].split(':')[1].strip()
                 spreadsheetId=BI_ENGINE_SHEET
@@ -730,6 +781,7 @@ def main():
 
                 #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+        '''
 
         if step == 'Calc Hierachy': #this should happen once and be cached
             #if hierarchy cache not exist

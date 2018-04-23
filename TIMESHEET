@@ -54,6 +54,9 @@ April 15:
 1 hour: retrieving all of Mike's csv files of HRIS abstracts: https://drive.google.com/drive/u/1/folders/1jG7WHwm94-zqI-bAcUURhWe0CXuhcMcx
         and testing the pipeline works when all data is combined
 7 hours: rewrote and tested metric calculation function.  Revision is now more than 2x faster and uses optimized pandas dataframe queries for segment filtering.
+
+April 22
+3 hours: restructuring order of input fields in instructions. Refactoring CreateNewField_FromData steps
 =======
     
 Running Total = 57.5
