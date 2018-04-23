@@ -544,19 +544,17 @@ def main():
 
             if newField == 'Year':
                 f = lambda x: x.year
-                #Active_df[newField] = get_date_attribute(Active_df, sourceField, f)
-                #Start_df[newField] = get_date_attribute(Start_df, sourceField, f)
-                #Exit_df[newField] = get_date_attribute(Exit_df, sourceField, f)
+                func_to_apply = get_date_attribute
             elif newField == 'Month':
                 f = lambda x: x.month
+                func_to_apply = get_date_attribute
             elif newField == 'Calendar_Year_Month':
                 f = lambda x: '%d-%d'%(x.year,x.month)
+                func_to_apply = get_date_attribute
 
-            Active_df[newField] = get_date_attribute(Active_df, sourceField, f)
-            Start_df[newField] = get_date_attribute(Start_df, sourceField, f)
-            Exit_df[newField] = get_date_attribute(Exit_df, sourceField, f)
-
-            print(Active_df[[sourceField,newField]].head())
+            Active_df[newField] = func_to_apply(Active_df, sourceField, f)
+            Start_df[newField] = func_to_apply(Start_df, sourceField, f)
+            Exit_df[newField] = func_to_apply(Exit_df, sourceField, f)
 
             #if step not already processed, mark the sheet to show it has been processed
             update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
@@ -564,7 +562,10 @@ def main():
         if step == 'CreateNewField_FromData': #this step happens every time since it happens in memory
             newField = Steps_df.loc[row,'Field1'].split(':')[1].strip()
             
-            if newField == 'XYZ_Period':
+            if newField == 'Active_Start_Period' or newField == 'Active_End_Period': #not sure what these columns are supposed to mean, skipping
+                update_status_skipped(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
+
+            elif newField == 'XYZ_Period':
                 rangeName = Steps_df.loc[row,'Field2'].split(':')[1].strip()
 
                 #retrieve ActivityPeriod named range and store as dict
@@ -584,15 +585,6 @@ def main():
                 #if step not already processed, mark the sheet to show it has been processed
                 update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
-            elif newField == 'Active_Start_Period': #not sure what this column is supposed to mean, skipping
-                #status update
-                #update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
-                update_status_skipped(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
-
-            elif newField == 'Active_End_Period': #not sure what this column is supposed to mean, skipping
-                #status update
-                #update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
-                update_status_skipped(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
             elif newField == 'PA_CUSTOM_TENURE_GRP':
                 rangeName = Steps_df.loc[row,'Field2'].split(':')[1].strip()
