@@ -50,14 +50,14 @@ Table of StepName in sequential order as appears in Spreadsheet and the Spreadsh
 
 |StepName                     | Field inputs                                   |
 | --------------------------- | ---------------------------------------------- |
-|**Create Output File**           | Field 1: Google drive path (not used)          |
-|                             | Field 2: output Tableau file                   |
+|**Create Output File**           | Field 1: output Tableau file            |
+|                             |                                                |
 |**Load File Into Memory**        | Field 1: SpreadsheetId of input                |
 | [load active emp,           | Field 2: Startdate                             |
 |  starts, exits              | Field 3: Enddate                               |
 |  from Google Sheets]        | Field 4: RecordType                            |
-|                             | Field 5: Output location (not used)            |
-|                             | Field 6: Output file name                      |
+|                             | Field 5: Output file name                     |
+|                             |                                                |
 |**Load Field Names**             | Field 1: RecordType                            |
 | [get column names for       | Field 2: NamedRange (for reassigning col names)|
 |  remapping]                 |                                                |
@@ -68,11 +68,13 @@ Table of StepName in sequential order as appears in Spreadsheet and the Spreadsh
 |**CreateNewField_FromMap**       | Field 1: New field name                       | 
 | [creat new column           | Field 2: UseNamedRange                        | 
 |  according to inputs]       | Field 3: Old field name to remap              | 
+|                             | Field 4: comma-delimited column titles in UseNamedRange |
 |                             |                                               | 
-|**CreateNewField_FromExpression**| Field 1: Year, Month, or Calendar_Year_Month| 
-| [different logic for        | Field 2: not used                           | 
-|  each option in Field 1]    | Field 3: Source field name                  | 
-|                             |                                             | 
+|**CreateNewField_FromExpression**| Field 1: one of Year, Month, or Calendar_Year_Month| 
+| [different lambda function      | Field 2: Source field name to operate on |
+|  logic for each option          |                                          | 
+|  in Field 1]                    |                                          | 
+|                             |                                              | 
 |**CreateNewField_FromData**      | Field 1: field to work on                   |
 | [different logic for each   | Field 2: UsedNameRange (only for some Field 1 choices)|
 |  possible Field 1]          |                                                       |

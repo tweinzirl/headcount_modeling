@@ -367,10 +367,8 @@ def main():
     Exit_dfh = None #main data frame to hold Exit employee dat after hierarchy additiona
 
     #output metrics df
-    #columns = ['Segment_Category','Segment_Filter', 'Segment_Name', 'Segment_Period', 'Headcount_Begin_#','Headcount_End_#','Start_#','Exit_#','Pending_Start_#','Pending_Exit_#','Growth_#','Move_In_#','Move_Out_#','Start_%','Exit_%','Growth_%','Move_In_%','Move_Out_%','To_Be_Hired_#','Plan_Headcount_End_#','Plan_%_Headcount_End_#']
     output_metrics_columns = ['Segment_Category', 'Segment_Name', 'Segment_Period', 'Metric_Name', 'ACTUAL','PLAN']
     output_metrics_df = pd.DataFrame(columns=output_metrics_columns)
-
 
     for row in Steps_df.index: 
         step = Steps_df.loc[row,'StepName'].split(':')[1].strip()
@@ -381,7 +379,7 @@ def main():
         if step == 'Create Output File': 
 
             #define output file
-            foutname = os.path.join('localOutput', Steps_df.loc[row,'Field2'].split(':')[1].strip())
+            foutname = os.path.join('localOutput', Steps_df.loc[row,'Field1'].split(':')[1].strip())
             #set local output file
             TableauInputFile = foutname
 
@@ -400,8 +398,7 @@ def main():
             spreadSheetId = Steps_df.loc[row,'Field1'].split(':')[1].strip() #spreadsheetId of data
 
             datatype = Steps_df.loc[row,'Field4'].split(':')[1].strip()
-            output_location = Steps_df.loc[row,'Field5'].split(':')[1].strip()
-            filename = os.path.join('localOutput',Steps_df.loc[row,'Field6'].split(':')[1].strip())
+            filename = os.path.join('localOutput',Steps_df.loc[row,'Field5'].split(':')[1].strip())
 
             if datatype == 'EmployeeActive': #placeholder in lieu of talking to real endpoint
                 EmployeeActiveFiles.append(filename) #append file name
@@ -520,11 +517,13 @@ def main():
             newField = Steps_df.loc[row,'Field1'].split(':')[1].strip()
             rangeName = Steps_df.loc[row,'Field2'].split(':')[1].strip()
             oldField = Steps_df.loc[row,'Field3'].split(':')[1].strip()
+            namedRangeColumns = [col.strip() for col in Steps_df.loc[row,'Field4'].split(':')[1].split(',')]
+
             spreadsheetId=BI_ENGINE_SHEET
             tmp_df, tmp_range = read_sheet(service, rangeName=rangeName, spreadsheetId=spreadsheetId)
-            map_dict = tmp_df[['Source Field Data','Destination Segment Grouping']].to_dict('list')
+            map_dict = tmp_df[namedRangeColumns].to_dict('list')
             mapper = {}
-            for a,b in zip(map_dict['Source Field Data'], map_dict['Destination Segment Grouping']):
+            for a,b in zip(map_dict[namedRangeColumns[0]], map_dict[namedRangeColumns[1]]):
                 mapper[a] = b
 
             #Active_df[newField] = Active_df['Client_Job_Family_Detailed'].map(mapper)
@@ -541,24 +540,23 @@ def main():
 
         if step == 'CreateNewField_FromExpression': #this step happens every time since it happens in memory
             newField = Steps_df.loc[row,'Field1'].split(':')[1].strip()
-            sourceField = Steps_df.loc[row,'Field3'].split(':')[1].strip()
+            sourceField = Steps_df.loc[row,'Field2'].split(':')[1].strip()
 
             if newField == 'Year':
                 f = lambda x: x.year
-                Active_df[newField] = get_date_attribute(Active_df, sourceField, f)
-                Start_df[newField] = get_date_attribute(Start_df, sourceField, f)
-                Exit_df[newField] = get_date_attribute(Exit_df, sourceField, f)
+                #Active_df[newField] = get_date_attribute(Active_df, sourceField, f)
+                #Start_df[newField] = get_date_attribute(Start_df, sourceField, f)
+                #Exit_df[newField] = get_date_attribute(Exit_df, sourceField, f)
             elif newField == 'Month':
                 f = lambda x: x.month
-                Active_df[newField] = get_date_attribute(Active_df, sourceField, f)
-                Start_df[newField] = get_date_attribute(Start_df, sourceField, f)
-                Exit_df[newField] = get_date_attribute(Exit_df, sourceField, f)
             elif newField == 'Calendar_Year_Month':
-                #f = lambda x: '%d-%d'%(x.year,x.month)
                 f = lambda x: '%d-%d'%(x.year,x.month)
-                Active_df[newField] = get_date_attribute(Active_df, sourceField, f)
-                Start_df[newField] = get_date_attribute(Start_df, sourceField, f)
-                Exit_df[newField] = get_date_attribute(Exit_df, sourceField, f)
+
+            Active_df[newField] = get_date_attribute(Active_df, sourceField, f)
+            Start_df[newField] = get_date_attribute(Start_df, sourceField, f)
+            Exit_df[newField] = get_date_attribute(Exit_df, sourceField, f)
+
+            print(Active_df[[sourceField,newField]].head())
 
             #if step not already processed, mark the sheet to show it has been processed
             update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
