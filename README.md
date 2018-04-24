@@ -75,9 +75,15 @@ Table of StepName in sequential order as appears in Spreadsheet and the Spreadsh
 |  logic for each option          |                                          | 
 |  in Field 1]                    |                                          | 
 |                             |                                              | 
-|**CreateNewField_FromData**      | Field 1: field to work on                   |
-| [different logic for each   | Field 2: UsedNameRange (only for some Field 1 choices)|
-|  possible Field 1]          |                                                       |
+|**CreateNewField_FromData**  | Field 1: new field to create                |
+| [different logic for each   | Field 2: UsedNameRange                      |
+|  possible Field 1]          | Field 3: field to map from in creating new columns    |
+|                             | Field 4: columns in named range (Field 2)             |
+|                             | Field 5: optional python function to apply 
+|                             |      (currently supported: get_tenureGroup,)           |
+|                             |      (crosstab_concat)                                |
+|                             | Field 6: optional parameter to pass to function       |
+|                             | Field 7: optional parameter to pass to function       |
 |                             |                                                       |
 |**Calc Hierarchy               | Field 1, Field 2, etc. not used                       |
 |                             |                                                       |

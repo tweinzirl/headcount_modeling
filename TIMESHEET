@@ -57,6 +57,9 @@ April 15:
 
 April 22
 3 hours: restructuring order of input fields in instructions. Refactoring CreateNewField_FromData steps
+
+April 23
+2 hours: finish testing restructuring of CreateNewField_FromData steps, including crosstab steps
 =======
     
-Running Total = 57.5
+Running Total = 61.5 (as of April 23)
