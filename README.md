@@ -85,7 +85,7 @@ Table of StepName in sequential order as appears in Spreadsheet and the Spreadsh
 |                             | Field 6: optional parameter to pass to function       |
 |                             | Field 7: optional parameter to pass to function       |
 |                             |                                                       |
-|**Calc Hierarchy               | Field 1, Field 2, etc. not used                       |
+|**Calc Hierarchy**             | Field 1, Field 2, etc. not used                       |
 |                             |                                                       |
 |**CreateMetricOutput**           | Field 1: PIVOT_SEG_TYPE (e.g., Actual)                |
 | [creates all metrics        | Field 2: PIVOT_SEG_PERIOD (Year, Year-Quarter)    |
