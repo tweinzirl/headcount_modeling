@@ -75,6 +75,10 @@ Table of StepName in sequential order as appears in Spreadsheet and the Spreadsh
 |  logic for each option          |                                          | 
 |  in Field 1]                    |                                          | 
 |                             |                                              | 
+|**PopulateNamedRange**       |  Field 1: Sheet name to write to             | 
+|                             |  Field 2: Column in Field 1 sheet to write to | 
+|                             |  Field 3: Dataframe column to process and upload|
+|                             |                                               | 
 |**CreateNewField_FromData**  | Field 1: new field to create                |
 | [different logic for each   | Field 2: UsedNameRange                      |
 |  possible Field 1]          | Field 3: field to map from in creating new columns    |

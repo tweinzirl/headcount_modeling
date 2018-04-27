@@ -88,6 +88,7 @@ def main():
 
     #########################################################################
     ### manually change this variable to perform on a different spreadsheet ############
+    ### https://docs.google.com/spreadsheets/d/1D5UC6tTuCKECsw0hLJHfFKQzI_iXaYAzB_jwKqVX-Ic/edit#gid=0
     spreadsheetId = '1D5UC6tTuCKECsw0hLJHfFKQzI_iXaYAzB_jwKqVX-Ic'
     #########################################################################
     rangeName = 'Sheet1!A1:C'
@@ -130,6 +131,15 @@ def main():
 
     for i in range(len(jagged)): print(jagged[i])
     #'''
+
+    #test named range
+    rangeName = 'Sheet1!H19:H23'
+    body = {'values':[[3],[4],[5],[6],[7]]}
+    result = service.spreadsheets().values().update(
+        spreadsheetId=spreadsheetId, range=rangeName, valueInputOption='RAW', 
+        body=body).execute()
+
+
 
 if __name__ == '__main__':
     main()
