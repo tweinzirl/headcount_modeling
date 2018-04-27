@@ -559,21 +559,28 @@ def main():
             update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
         if step=='PopulateNamedRange':
-            sheet = Steps_df.loc[row,'Field1'].split(':')[1].strip()
-            column = Steps_df.loc[row,'Field2'].split(':')[1].strip()
-            colname = Steps_df.loc[row,'Field3'].split(':')[1].strip()
 
-            #get unique values and reshape
-            val = [[colname]]
-            for v in sorted(set(Active_df[colname].dropna().tolist() + Start_df[colname].dropna().tolist() + Exit_df[colname].dropna().tolist())): #remove duplicates
-                val.append([v]) #1 row x N columns
+            #only do anything if this step not already processed
+            if unicode.find(Steps_df.loc[row,'Processing Status(% complete)'], 'Processed') ==- 1:
 
-            #parameters for upload to sheet
-            rangeName = '%s!%s1:%s%d'%(sheet,column,column,1+len(val))
-            body = {'values':val}
-            result = service.spreadsheets().values().update(
-                spreadsheetId=spreadsheetId, range=rangeName, valueInputOption='RAW', 
-                body=body).execute()
+                sheet = Steps_df.loc[row,'Field1'].split(':')[1].strip()
+                column = Steps_df.loc[row,'Field2'].split(':')[1].strip()
+                colname = Steps_df.loc[row,'Field3'].split(':')[1].strip()
+
+                #get unique values and reshape
+                val = [[colname]]
+                for v in sorted(set(Active_df[colname].dropna().tolist() + Start_df[colname].dropna().tolist() + Exit_df[colname].dropna().tolist())): #remove duplicates
+                    val.append([v]) #1 row x N columns
+
+                #parameters for upload to sheet
+                rangeName = '%s!%s1:%s%d'%(sheet,column,column,1+len(val))
+                body = {'values':val}
+                result = service.spreadsheets().values().update(
+                    spreadsheetId=spreadsheetId, range=rangeName, valueInputOption='RAW', 
+                    body=body).execute()
+
+                #if step not already processed, mark the sheet to show it has been processed
+                update_status_processed(service,Steps_df,row,spreadsheetId=BI_ENGINE_SHEET)
 
         if step == 'CreateNewField_FromData': #this step happens every time since it happens in memory
             newField = Steps_df.loc[row,'Field1'].split(':')[1].strip()
