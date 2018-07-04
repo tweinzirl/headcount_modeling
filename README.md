@@ -1,3 +1,6 @@
+FUCK YOU ASSHOLES - THIS CODE IS NOT A FREEBIE
+
+
 Documentation
 
 # Preliminary python setup
